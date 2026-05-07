@@ -21,7 +21,7 @@ with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as _f:
     _tmp_parquet = _f.name
 
 _con = duckdb.connect()
-_con.execute(f"CREATE TABLE omi AS SELECT * FROM read_parquet('{_tmp_parquet}')")
+_con.execute(f"CREATE VIEW omi AS SELECT * FROM read_parquet('{_tmp_parquet}')")
 
 
 def q(sql, params=None):
