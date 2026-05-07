@@ -1,0 +1,18 @@
+.venv/
+
+.vscode/
+__pycache__/
+documents/
+datasets/
+
+light_data.ipynb
+
+# Ignore environment variables
+*.env
+
+# Ignore Claude files
+plan/
+
+.claude/
+
+CLAUDE.md
