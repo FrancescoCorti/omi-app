@@ -92,7 +92,6 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-slugify==8.0.4
 pytz==2025.2
-pywin32==311
 PyYAML==6.0.2
 pyzmq==27.0.1
 RapidFuzz==3.14.3
