@@ -83,8 +83,8 @@ body {
 
 /* ── dcc.Dropdown overrides ─────────────────────────────────────────────────── */
 .Select-control {
-  border-color: var(--border) !important;
-  background: #fff !important;
+  background: var(--sidebar-bg) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
   font-family: 'Inter', sans-serif !important;
 }
 
@@ -95,10 +95,21 @@ body {
   box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2) !important;
 }
 
+.Select-value-label,
+.Select-placeholder { color: var(--sidebar-text) !important; }
+
+.Select-arrow { border-top-color: var(--sidebar-text) !important; }
+
 .Select-menu-outer {
-  border-color: var(--border) !important;
+  background: var(--sidebar-bg) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
   font-family: 'Inter', sans-serif !important;
 }
 
-.Select-option.is-focused  { background: rgba(74, 144, 217, 0.1) !important; }
+.Select-option {
+  background: var(--sidebar-bg) !important;
+  color: var(--sidebar-text) !important;
+}
+
+.Select-option.is-focused  { background: rgba(74, 144, 217, 0.15) !important; }
 .Select-option.is-selected { background: var(--accent) !important; color: #fff !important; }
