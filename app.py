@@ -12,7 +12,7 @@ _logo_file = Path(__file__).parent / "assets" / "logo.svg"
 _logo_slot = (
     html.Img(src="/assets/logo.svg", style={"height": "48px"})
     if _logo_file.exists()
-    else html.Div("House Dashboard", style={
+    else html.Div("Estate Insights", style={
         "fontWeight": "700",
         "fontSize": "1.25rem",
         "color": "#fff",
@@ -22,7 +22,7 @@ _logo_slot = (
 
 sidebar = html.Div([
     html.Div(_logo_slot, id="sidebar-logo"),
-    html.Div("House Dashboard", id="sidebar-title"),
+    html.Div("Estate Insights", id="sidebar-title"),
     html.Hr(),
     dbc.Nav([
         dbc.NavLink("Chart", href="/",     active="exact"),

@@ -6,6 +6,10 @@ from data import q, build_where, ALL_REGIONS, ALL_TYPES
 
 dash.register_page(__name__, path="/", name="Chart")
 
+# mirrors CSS :root variables — update here when the theme changes
+_PAPER = "#030e38"   # --bg
+_TEXT  = "#d9deef"   # --text
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def make_options(values, all_label):
     return [{"label": all_label, "value": "average"}] + \
@@ -165,5 +169,7 @@ def update_chart(reg, prov, mun, zone, prop_type, condition):
         hovermode="x unified", hoverdistance=50, spikedistance=50,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         template="plotly", height=500,
+        paper_bgcolor=_PAPER,
+        font=dict(color=_TEXT, family="Inter, sans-serif"),
     )
     return fig
