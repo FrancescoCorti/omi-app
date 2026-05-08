@@ -2,11 +2,11 @@
 
 /* ── Design tokens ──────────────────────────────────────────────────────────── */
 :root {
-  --bg:            #f5f6fa;
+  --bg:            #030e38;
   --sidebar-bg:    #1c2b3a;
   --sidebar-text:  #cdd8e3;
   --accent:        #4a90d9;
-  --text:          #1a1f2e;
+  --text:          #d9deef;
   --border:        #dee2e6;
   --sidebar-width: 250px;
 }
