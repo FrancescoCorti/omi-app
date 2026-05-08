@@ -1,7 +1,10 @@
+import dash
 import plotly.graph_objects as go
 from dash import dcc, html, Input, Output, callback
 
 from data import q, build_where, ALL_REGIONS, ALL_TYPES
+
+dash.register_page(__name__, path="/", name="Chart")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def make_options(values, all_label):

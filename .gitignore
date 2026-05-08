@@ -2,7 +2,7 @@
 
 .vscode/
 __pycache__/
-documents/
+documentation/
 datasets/
 
 light_data.ipynb
@@ -16,3 +16,5 @@ plan/
 .claude/
 
 CLAUDE.md
+
+progress.md

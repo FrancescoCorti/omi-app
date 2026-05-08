@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+/* ── Design tokens ──────────────────────────────────────────────────────────── */
+:root {
+  --bg:            #f5f6fa;
+  --sidebar-bg:    #1c2b3a;
+  --sidebar-text:  #cdd8e3;
+  --accent:        #4a90d9;
+  --text:          #1a1f2e;
+  --border:        #dee2e6;
+  --sidebar-width: 250px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Shell ──────────────────────────────────────────────────────────────────── */
+#app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────────── */
+#sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  padding: 24px 16px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+#sidebar-logo { margin-bottom: 12px; }
+
+#sidebar-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--sidebar-text);
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
+}
+
+#sidebar hr {
+  border-color: rgba(255, 255, 255, 0.15);
+  margin: 8px 0 16px;
+}
+
+#sidebar .nav-link {
+  color: var(--sidebar-text);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+#sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+#sidebar .nav-link.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── Content area ───────────────────────────────────────────────────────────── */
+#page-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  padding: 24px;
+  flex: 1;
+}
+
+/* ── dcc.Dropdown overrides ─────────────────────────────────────────────────── */
+.Select-control {
+  border-color: var(--border) !important;
+  background: #fff !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.Select-control:hover { border-color: var(--accent) !important; }
+
+.is-focused .Select-control {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2) !important;
+}
+
+.Select-menu-outer {
+  border-color: var(--border) !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.Select-option.is-focused  { background: rgba(74, 144, 217, 0.1) !important; }
+.Select-option.is-selected { background: var(--accent) !important; color: #fff !important; }
