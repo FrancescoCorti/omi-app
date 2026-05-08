@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from data import q, build_where, ALL_REGIONS, ALL_TYPES, ALL_CONDITIONS
+from data import q, build_where, ALL_REGIONS, ALL_TYPES
 
 BASE_DIR = Path(__file__).parent
 LOGO_FILE = BASE_DIR / "assets" / "logo.svg"
@@ -27,7 +27,6 @@ def _base_ctx(request: Request, active: str) -> dict:
 
 
 def _norm(v: str | None) -> str | None:
-    """Empty string from a select means 'no filter at this level' — same role as Dash's 'average' sentinel."""
     if v is None or v == "":
         return None
     return v
@@ -40,7 +39,6 @@ def page_chart(request: Request):
     ctx.update({
         "regions": ALL_REGIONS,
         "types": ALL_TYPES,
-        "conditions": ALL_CONDITIONS,
         "default_type": "Residential housing" if "Residential housing" in ALL_TYPES else (ALL_TYPES[0] if ALL_TYPES else ""),
     })
     return templates.TemplateResponse("chart.html", ctx)
@@ -51,9 +49,9 @@ def page_info(request: Request):
     return templates.TemplateResponse("info.html", _base_ctx(request, active="info"))
 
 
-# ── Chart data ────────────────────────────────────────────────────────────────
-@app.get("/api/chart")
-def api_chart(
+# ── Single state endpoint: returns all dropdown options + chart in one shot ──
+@app.get("/api/state")
+def api_state(
     region: str | None = None,
     province: str | None = None,
     municipality: str | None = None,
@@ -67,6 +65,24 @@ def api_chart(
     zn = _norm(zone)
     pt = _norm(type)
     cond = _norm(condition)
+
+    provinces: list[str] = []
+    if reg is not None:
+        w, p = build_where(reg=reg)
+        provinces = q(f'SELECT DISTINCT "Prov. name" FROM omi {w} ORDER BY "Prov. name"', p)["Prov. name"].tolist()
+
+    municipalities: list[str] = []
+    if reg is not None and prov is not None:
+        w, p = build_where(reg=reg, prov=prov)
+        municipalities = q(f'SELECT DISTINCT "Mun. name" FROM omi {w} ORDER BY "Mun. name"', p)["Mun. name"].tolist()
+
+    zones: list[str] = []
+    if reg is not None and prov is not None and mun is not None:
+        w, p = build_where(reg=reg, prov=prov, mun=mun)
+        zones = q(f"SELECT DISTINCT Zone FROM omi {w} ORDER BY Zone", p)["Zone"].tolist()
+
+    w, p = build_where(reg=reg, prov=prov, mun=mun, zone=zn)
+    conditions = q(f"SELECT DISTINCT Condition FROM omi {w} ORDER BY Condition", p)["Condition"].tolist()
 
     w, params = build_where(reg=reg, prov=prov, mun=mun, zone=zn, prop_type=pt, condition=cond)
     df = q(
@@ -84,14 +100,23 @@ def api_chart(
     subtitle = _build_subtitle(reg, prov, mun, zn, pt, cond)
 
     if df.empty:
-        return JSONResponse({"x": [], "min": [], "mean": [], "max": [], "subtitle": subtitle, "empty": True})
+        chart = {"x": [], "min": [], "mean": [], "max": [], "subtitle": subtitle, "empty": True}
+    else:
+        x = df["Year_Semester"].str.replace("_", " - ").tolist()
+        mn = df["min_price"].round(2).tolist()
+        mx = df["max_price"].round(2).tolist()
+        mean = [round((a + b) / 2, 2) for a, b in zip(mn, mx)]
+        chart = {"x": x, "min": mn, "mean": mean, "max": mx, "subtitle": subtitle, "empty": False}
 
-    x = df["Year_Semester"].str.replace("_", " - ").tolist()
-    mn = df["min_price"].round(2).tolist()
-    mx = df["max_price"].round(2).tolist()
-    mean = [round((a + b) / 2, 2) for a, b in zip(mn, mx)]
-
-    return JSONResponse({"x": x, "min": mn, "mean": mean, "max": mx, "subtitle": subtitle, "empty": False})
+    return JSONResponse({
+        "options": {
+            "provinces": provinces,
+            "municipalities": municipalities,
+            "zones": zones,
+            "conditions": conditions,
+        },
+        "chart": chart,
+    })
 
 
 def _build_subtitle(reg, prov, mun, zn, pt, cond) -> str:
@@ -100,72 +125,6 @@ def _build_subtitle(reg, prov, mun, zn, pt, cond) -> str:
     cond_label = cond.capitalize() if cond else "All conditions (avg)"
     type_label = pt or "All types"
     return f"{type_label} · {territory} · {zone_label} · {cond_label}"
-
-
-# ── Cascade dropdowns (HTMX partials) ─────────────────────────────────────────
-@app.get("/partials/province", response_class=HTMLResponse)
-def partial_province(request: Request, region: str | None = None):
-    reg = _norm(region)
-    if reg is None:
-        values = []
-    else:
-        w, p = build_where(reg=reg)
-        values = q(f'SELECT DISTINCT "Prov. name" FROM omi {w} ORDER BY "Prov. name"', p)["Prov. name"].tolist()
-    return templates.TemplateResponse("partials/province.html", {
-        "request": request,
-        "values": values,
-        "disabled": reg is None,
-        "cascade": True,
-    })
-
-
-@app.get("/partials/municipality", response_class=HTMLResponse)
-def partial_municipality(request: Request, region: str | None = None, province: str | None = None):
-    reg, prov = _norm(region), _norm(province)
-    if prov is None:
-        values = []
-    else:
-        w, p = build_where(reg=reg, prov=prov)
-        values = q(f'SELECT DISTINCT "Mun. name" FROM omi {w} ORDER BY "Mun. name"', p)["Mun. name"].tolist()
-    return templates.TemplateResponse("partials/municipality.html", {
-        "request": request,
-        "values": values,
-        "disabled": prov is None,
-        "cascade": True,
-    })
-
-
-@app.get("/partials/zone", response_class=HTMLResponse)
-def partial_zone(request: Request, region: str | None = None, province: str | None = None, municipality: str | None = None):
-    reg, prov, mun = _norm(region), _norm(province), _norm(municipality)
-    if mun is None:
-        values = []
-    else:
-        w, p = build_where(reg=reg, prov=prov, mun=mun)
-        values = q(f"SELECT DISTINCT Zone FROM omi {w} ORDER BY Zone", p)["Zone"].tolist()
-    return templates.TemplateResponse("partials/zone.html", {
-        "request": request,
-        "values": values,
-        "disabled": mun is None,
-        "cascade": True,
-    })
-
-
-@app.get("/partials/condition", response_class=HTMLResponse)
-def partial_condition(
-    request: Request,
-    region: str | None = None,
-    province: str | None = None,
-    municipality: str | None = None,
-    zone: str | None = None,
-):
-    reg, prov, mun, zn = _norm(region), _norm(province), _norm(municipality), _norm(zone)
-    w, p = build_where(reg=reg, prov=prov, mun=mun, zone=zn)
-    values = q(f"SELECT DISTINCT Condition FROM omi {w} ORDER BY Condition", p)["Condition"].tolist()
-    return templates.TemplateResponse("partials/condition.html", {
-        "request": request,
-        "values": values,
-    })
 
 
 if __name__ == "__main__":

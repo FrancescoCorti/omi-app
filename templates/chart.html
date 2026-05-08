@@ -4,49 +4,58 @@
 
 {% block content %}
 <div class="chart-page" id="chart-page">
-  <div class="filter-row">
-    <div class="filter-cell">
-      <label for="f-region">Region</label>
-      <select id="f-region" name="region"
-              hx-get="/partials/province"
-              hx-target="#province-wrap"
-              hx-swap="outerHTML"
-              hx-include="[name='region']"
-              hx-trigger="change">
-        <option value="" selected>Average (all regions)</option>
-        {% for r in regions %}
-        <option value="{{ r }}">{{ r }}</option>
-        {% endfor %}
-      </select>
+  <form id="filter-form" onsubmit="return false;">
+    <div class="filter-row">
+      <div class="filter-cell">
+        <label for="f-region">Region</label>
+        <select id="f-region" name="region">
+          <option value="" selected>Average (all regions)</option>
+          {% for r in regions %}
+          <option value="{{ r }}">{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-cell">
+        <label for="f-province">Province</label>
+        <select id="f-province" name="province" disabled>
+          <option value="" selected>Average (all provinces)</option>
+        </select>
+      </div>
+
+      <div class="filter-cell">
+        <label for="f-mun">Municipality</label>
+        <select id="f-mun" name="municipality" disabled>
+          <option value="" selected>Average (all municipalities)</option>
+        </select>
+      </div>
+
+      <div class="filter-cell">
+        <label for="f-zone">Zone</label>
+        <select id="f-zone" name="zone" disabled>
+          <option value="" selected>Average (all zones)</option>
+        </select>
+      </div>
     </div>
 
-    {% with values=[], disabled=True %}
-      {% include "partials/province.html" %}
-    {% endwith %}
+    <div class="filter-row">
+      <div class="filter-cell">
+        <label for="f-type">Property type</label>
+        <select id="f-type" name="type">
+          {% for t in types %}
+          <option value="{{ t }}" {% if t == default_type %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-    {% with values=[], disabled=True %}
-      {% include "partials/municipality.html" %}
-    {% endwith %}
-
-    {% with values=[], disabled=True %}
-      {% include "partials/zone.html" %}
-    {% endwith %}
-  </div>
-
-  <div class="filter-row">
-    <div class="filter-cell">
-      <label for="f-type">Property type</label>
-      <select id="f-type" name="type">
-        {% for t in types %}
-        <option value="{{ t }}" {% if t == default_type %}selected{% endif %}>{{ t }}</option>
-        {% endfor %}
-      </select>
+      <div class="filter-cell">
+        <label for="f-condition">Condition</label>
+        <select id="f-condition" name="condition">
+          <option value="" selected>Average (all conditions)</option>
+        </select>
+      </div>
     </div>
-
-    {% with values=conditions %}
-      {% include "partials/condition.html" %}
-    {% endwith %}
-  </div>
+  </form>
 
   <div id="chart"></div>
 </div>
@@ -65,32 +74,61 @@
   const chart = echarts.init(chartEl, null, { renderer: "canvas" });
 
   const DOWNSTREAM = {
-    region: ["province", "municipality", "zone", "condition"],
-    province: ["municipality", "zone", "condition"],
-    municipality: ["zone", "condition"],
-    zone: ["condition"],
+    region:       ["province", "municipality", "zone"],
+    province:     ["municipality", "zone"],
+    municipality: ["zone"],
+    zone:         [],
+  };
+
+  const LABELS = {
+    province:     "Average (all provinces)",
+    municipality: "Average (all municipalities)",
+    zone:         "Average (all zones)",
+    condition:    "Average (all conditions)",
   };
 
   function readFilters() {
     const get = (name) => {
       const el = document.querySelector(`select[name="${name}"]`);
-      return el && el.value ? el.value : "";
+      return el ? el.value : "";
     };
     return {
-      region: get("region"),
-      province: get("province"),
+      region:       get("region"),
+      province:     get("province"),
       municipality: get("municipality"),
-      zone: get("zone"),
-      type: get("type"),
-      condition: get("condition"),
+      zone:         get("zone"),
+      type:         get("type"),
+      condition:    get("condition"),
     };
   }
 
   function clearDownstream(name) {
-    for (const childName of DOWNSTREAM[name] || []) {
-      const el = document.querySelector(`select[name="${childName}"]`);
+    for (const child of DOWNSTREAM[name] || []) {
+      const el = document.querySelector(`select[name="${child}"]`);
       if (el) el.value = "";
     }
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function paintSelect(name, values, currentValue) {
+    const el = document.querySelector(`select[name="${name}"]`);
+    if (!el) return;
+    const keep = currentValue && values.includes(currentValue) ? currentValue : "";
+    let html = `<option value="">${LABELS[name] || "Average"}</option>`;
+    for (const v of values) {
+      const safe = escapeHtml(v);
+      html += `<option value="${safe}"${v === keep ? " selected" : ""}>${safe}</option>`;
+    }
+    el.innerHTML = html;
+    el.value = keep;
+    el.disabled = values.length === 0;
   }
 
   function buildOption(data) {
@@ -158,31 +196,47 @@
     };
   }
 
-  async function refreshChart() {
+  // Sequence number prevents an older in-flight response from overwriting a newer one.
+  let seq = 0;
+
+  async function updateState() {
+    const my = ++seq;
     const filters = readFilters();
     const qs = new URLSearchParams(filters).toString();
-    const res = await fetch(`/api/chart?${qs}`);
+    let res;
+    try {
+      res = await fetch(`/api/state?${qs}`);
+    } catch (err) {
+      console.error("state fetch failed", err);
+      return;
+    }
+    if (my !== seq) return;
     if (!res.ok) {
-      console.error("chart fetch failed", res.status);
+      console.error("state fetch failed", res.status);
       return;
     }
     const data = await res.json();
-    chart.setOption(buildOption(data), true);
+    if (my !== seq) return;
+
+    paintSelect("province",     data.options.provinces,      filters.province);
+    paintSelect("municipality", data.options.municipalities, filters.municipality);
+    paintSelect("zone",         data.options.zones,          filters.zone);
+    paintSelect("condition",    data.options.conditions,     filters.condition);
+
+    chart.setOption(buildOption(data.chart), true);
   }
 
-  // User-initiated change: clear downstream values, then refresh chart.
-  // The HTMX cascade chain runs in parallel to update the downstream selects' options.
   document.getElementById("chart-page").addEventListener("change", (e) => {
     const t = e.target;
     if (t && t.tagName === "SELECT" && t.name) {
       clearDownstream(t.name);
-      refreshChart();
+      updateState();
     }
   });
 
   window.addEventListener("resize", () => chart.resize());
 
-  refreshChart();
+  updateState();
 })();
 </script>
 {% endblock %}
