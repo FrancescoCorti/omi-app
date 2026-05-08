@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Estate Insights — Chart{% endblock %}
+
+{% block content %}
+<div class="chart-page" id="chart-page">
+  <div class="filter-row">
+    <div class="filter-cell">
+      <label for="f-region">Region</label>
+      <select id="f-region" name="region"
+              hx-get="/partials/province"
+              hx-target="#province-wrap"
+              hx-swap="outerHTML"
+              hx-include="[name='region']"
+              hx-trigger="change">
+        <option value="" selected>Average (all regions)</option>
+        {% for r in regions %}
+        <option value="{{ r }}">{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% with values=[], disabled=True %}
+      {% include "partials/province.html" %}
+    {% endwith %}
+
+    {% with values=[], disabled=True %}
+      {% include "partials/municipality.html" %}
+    {% endwith %}
+
+    {% with values=[], disabled=True %}
+      {% include "partials/zone.html" %}
+    {% endwith %}
+  </div>
+
+  <div class="filter-row">
+    <div class="filter-cell">
+      <label for="f-type">Property type</label>
+      <select id="f-type" name="type">
+        {% for t in types %}
+        <option value="{{ t }}" {% if t == default_type %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% with values=conditions %}
+      {% include "partials/condition.html" %}
+    {% endwith %}
+  </div>
+
+  <div id="chart"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const PAPER = "#030e38";
+  const TEXT = "#d9deef";
+  const COLOR_MIN = "steelblue";
+  const COLOR_MEAN = "gray";
+  const COLOR_MAX = "tomato";
+
+  const chartEl = document.getElementById("chart");
+  const chart = echarts.init(chartEl, null, { renderer: "canvas" });
+
+  const DOWNSTREAM = {
+    region: ["province", "municipality", "zone", "condition"],
+    province: ["municipality", "zone", "condition"],
+    municipality: ["zone", "condition"],
+    zone: ["condition"],
+  };
+
+  function readFilters() {
+    const get = (name) => {
+      const el = document.querySelector(`select[name="${name}"]`);
+      return el && el.value ? el.value : "";
+    };
+    return {
+      region: get("region"),
+      province: get("province"),
+      municipality: get("municipality"),
+      zone: get("zone"),
+      type: get("type"),
+      condition: get("condition"),
+    };
+  }
+
+  function clearDownstream(name) {
+    for (const childName of DOWNSTREAM[name] || []) {
+      const el = document.querySelector(`select[name="${childName}"]`);
+      if (el) el.value = "";
+    }
+  }
+
+  function buildOption(data) {
+    if (data.empty) {
+      return {
+        backgroundColor: PAPER,
+        title: {
+          text: "No data for current selection",
+          left: "center",
+          top: "middle",
+          textStyle: { color: TEXT, fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 400 },
+        },
+      };
+    }
+
+    return {
+      backgroundColor: PAPER,
+      textStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+      title: {
+        text: "Buy Price Trends",
+        subtext: data.subtitle,
+        left: 0,
+        textStyle: { color: TEXT, fontFamily: "Inter, sans-serif", fontWeight: 600 },
+        subtextStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+      },
+      grid: { left: 64, right: 24, top: 96, bottom: 80 },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "line", lineStyle: { color: "#888", type: "dashed", width: 1 } },
+        backgroundColor: "rgba(28, 43, 58, 0.95)",
+        borderColor: "rgba(255,255,255,0.15)",
+        textStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        valueFormatter: (v) => (v == null ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })),
+      },
+      legend: {
+        data: ["Max. price", "Mean price", "Min. price"],
+        right: 0,
+        top: 0,
+        textStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        icon: "roundRect",
+      },
+      xAxis: {
+        type: "category",
+        data: data.x,
+        name: "Year - Semester",
+        nameLocation: "middle",
+        nameGap: 50,
+        nameTextStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        axisLabel: { color: TEXT, fontFamily: "Inter, sans-serif", rotate: -45 },
+        axisLine: { lineStyle: { color: "rgba(255,255,255,0.2)" } },
+      },
+      yAxis: {
+        type: "value",
+        name: "Price (€/m²)",
+        nameTextStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        axisLabel: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        axisLine: { lineStyle: { color: "rgba(255,255,255,0.2)" } },
+        splitLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
+      },
+      series: [
+        { name: "Max. price",  type: "line", showSymbol: false, lineStyle: { color: COLOR_MAX,  width: 2 }, itemStyle: { color: COLOR_MAX  }, data: data.max },
+        { name: "Mean price", type: "line", showSymbol: false, lineStyle: { color: COLOR_MEAN, width: 2, type: "dashed" }, itemStyle: { color: COLOR_MEAN }, data: data.mean },
+        { name: "Min. price", type: "line", showSymbol: false, lineStyle: { color: COLOR_MIN,  width: 2 }, itemStyle: { color: COLOR_MIN  }, data: data.min },
+      ],
+    };
+  }
+
+  async function refreshChart() {
+    const filters = readFilters();
+    const qs = new URLSearchParams(filters).toString();
+    const res = await fetch(`/api/chart?${qs}`);
+    if (!res.ok) {
+      console.error("chart fetch failed", res.status);
+      return;
+    }
+    const data = await res.json();
+    chart.setOption(buildOption(data), true);
+  }
+
+  // User-initiated change: clear downstream values, then refresh chart.
+  // The HTMX cascade chain runs in parallel to update the downstream selects' options.
+  document.getElementById("chart-page").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t && t.tagName === "SELECT" && t.name) {
+      clearDownstream(t.name);
+      refreshChart();
+    }
+  });
+
+  window.addEventListener("resize", () => chart.resize());
+
+  refreshChart();
+})();
+</script>
+{% endblock %}

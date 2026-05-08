@@ -45,8 +45,9 @@ def build_where(reg=None, prov=None, mun=None, zone=None, prop_type=None, condit
     return ("WHERE " + " AND ".join(clauses)) if clauses else "", params
 
 
-ALL_REGIONS = q('SELECT DISTINCT "Reg. name" FROM omi ORDER BY "Reg. name"')["Reg. name"].tolist()
-ALL_TYPES   = q("SELECT DISTINCT Type FROM omi ORDER BY Type")["Type"].tolist()
+ALL_REGIONS    = q('SELECT DISTINCT "Reg. name" FROM omi ORDER BY "Reg. name"')["Reg. name"].tolist()
+ALL_TYPES      = q("SELECT DISTINCT Type FROM omi ORDER BY Type")["Type"].tolist()
+ALL_CONDITIONS = q("SELECT DISTINCT Condition FROM omi ORDER BY Condition")["Condition"].tolist()
 
 # ── Geo data (loaded only when map page is active) ────────────────────────────
 GEOJSON_DIR = "datasets/data_maps/geojson"
