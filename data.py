@@ -1,8 +1,13 @@
+import io
+import json
 import os
+import re
 import tempfile
+import unicodedata
 
 import duckdb
 import geopandas as gpd
+import pandas as pd
 import requests
 from glob import glob
 
@@ -49,13 +54,93 @@ ALL_REGIONS    = q('SELECT DISTINCT "Reg. name" FROM omi ORDER BY "Reg. name"')[
 ALL_TYPES      = q("SELECT DISTINCT Type FROM omi ORDER BY Type")["Type"].tolist()
 ALL_CONDITIONS = q("SELECT DISTINCT Condition FROM omi ORDER BY Condition")["Condition"].tolist()
 
-# ── Geo data (loaded only when map page is active) ────────────────────────────
+# ── Geo data (remote, cached in memory) ───────────────────────────────────────
 GEOJSON_DIR = "datasets/data_maps/geojson"
+GEO_BASE_URL = "https://raw.githubusercontent.com/FrancescoCorti/omi-geodata/main"
 
+_geo_cache: dict[str, gpd.GeoDataFrame] = {}
+_zone_prov_index: dict[str, str] = {}   # province name → region name
+
+
+def _safe_filename(name: str) -> str:
+    """Mirror of prepare_data.safe_filename — must stay in sync with how files are named on GitHub."""
+    name = unicodedata.normalize("NFKD", name)
+    name = name.encode("ascii", "ignore").decode("ascii")
+    name = re.sub(r"[^\w\s-]", "", name)
+    return re.sub(r"[\s/]+", "_", name).strip("_")
 
 
 def load_geo(path: str) -> gpd.GeoDataFrame:
     return gpd.read_file(path)
+
+
+def _fetch_geo(url: str) -> gpd.GeoDataFrame:
+    resp = requests.get(url, headers=_headers)
+    resp.raise_for_status()
+    return gpd.read_file(io.BytesIO(resp.content))
+
+
+def _init_geo_cache() -> None:
+    global _zone_prov_index
+    gdf_reg = _fetch_geo(f"{GEO_BASE_URL}/reg_map.geojson")
+    _geo_cache["region"] = gdf_reg
+
+    gdf_prov = _fetch_geo(f"{GEO_BASE_URL}/prov_map.geojson")
+    _geo_cache["province"] = gdf_prov
+
+    if "Prov. name" in gdf_prov.columns and "Reg. name" in gdf_prov.columns:
+        _zone_prov_index = (
+            gdf_prov[["Prov. name", "Reg. name"]]
+            .drop_duplicates("Prov. name")
+            .set_index("Prov. name")["Reg. name"]
+            .to_dict()
+        )
+
+
+def _load_mun(region: str) -> gpd.GeoDataFrame:
+    key = f"mun:{region}"
+    if key not in _geo_cache:
+        fname = f"{_safe_filename(region)}.geojson"
+        _geo_cache[key] = _fetch_geo(f"{GEO_BASE_URL}/mun_by_region/{fname}")
+    return _geo_cache[key]
+
+
+def _load_zone_province(province: str) -> gpd.GeoDataFrame:
+    key = f"zprov:{province}"
+    if key not in _geo_cache:
+        fname = f"{_safe_filename(province)}.geojson"
+        _geo_cache[key] = _fetch_geo(f"{GEO_BASE_URL}/zone_by_province/{fname}")
+    return _geo_cache[key]
+
+
+def get_geo(level: str, region: str | None = None) -> dict:
+    """Return a GeoJSON FeatureCollection dict for the requested level/region."""
+    if level == "region":
+        gdf = _geo_cache.get("region")
+    elif level == "province":
+        gdf = _geo_cache.get("province")
+    elif level == "municipality":
+        if not region:
+            return {"type": "FeatureCollection", "features": []}
+        gdf = _load_mun(region)
+    elif level == "zone":
+        if not region:
+            return {"type": "FeatureCollection", "features": []}
+        provinces = [p for p, r in _zone_prov_index.items() if r == region]
+        gdfs = [_load_zone_province(p) for p in provinces]
+        if not gdfs:
+            return {"type": "FeatureCollection", "features": []}
+        gdf = gpd.GeoDataFrame(
+            pd.concat(gdfs, ignore_index=True),
+            geometry="geometry",
+            crs=gdfs[0].crs,
+        )
+    else:
+        return {"type": "FeatureCollection", "features": []}
+
+    if gdf is None or gdf.empty:
+        return {"type": "FeatureCollection", "features": []}
+    return json.loads(gdf.to_json())
 
 
 def _build_geo_indexes():

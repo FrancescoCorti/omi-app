@@ -4,30 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Estate Insights{% endblock %}</title>
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=4">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
-  <div id="app-shell">
-    <aside id="sidebar">
-      <div id="sidebar-logo">
+  <header id="topnav">
+    <div id="topnav-left">
+      <a id="topnav-brand" href="/">
         {% if logo_exists %}
-          <img src="/assets/logo.svg" style="height: 48px;" alt="Estate Insights logo">
-        {% else %}
-          <div style="font-weight:700;font-size:1.25rem;color:#fff;letter-spacing:0.03em;">Estate Insights</div>
+          <img src="/assets/logo.svg" style="height: 28px;" alt="">
         {% endif %}
-      </div>
-      <div id="sidebar-title">Estate Insights</div>
-      <hr>
+        <span id="topnav-title">Estate Insights</span>
+      </a>
+      <div id="topnav-sep"></div>
       <nav class="nav">
-        <a class="nav-link {% if active == 'chart' %}active{% endif %}" href="/">Chart</a>
+        <a class="nav-link {% if active == 'home' %}active{% endif %}" href="/home">Home</a>
+        <a class="nav-link {% if active == 'chart' %}active{% endif %}" href="/chart">Chart</a>
+        <a class="nav-link {% if active == 'map' %}active{% endif %}" href="/map">Map</a>
         <a class="nav-link {% if active == 'info' %}active{% endif %}" href="/info">Info</a>
       </nav>
-    </aside>
-    <main id="page-content">
-      {% block content %}{% endblock %}
-    </main>
-  </div>
+    </div>
+  </header>
+  <main id="page-content">
+    {% block content %}{% endblock %}
+  </main>
   {% block scripts %}{% endblock %}
 </body>
 </html>

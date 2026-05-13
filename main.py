@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+import data
 from data import q, build_where, ALL_REGIONS, ALL_TYPES
 
 BASE_DIR = Path(__file__).parent
@@ -16,6 +17,11 @@ LOGO_FILE = BASE_DIR / "assets" / "logo.svg"
 app = FastAPI()
 app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+try:
+    data._init_geo_cache()
+except Exception as _geo_exc:
+    print(f"[geo] Map data unavailable: {_geo_exc}")
 
 
 def _base_ctx(request: Request, active: str) -> dict:
@@ -32,8 +38,14 @@ def _norm(v: str | None) -> str | None:
     return v
 
 
-# ── Pages ─────────────────────────────────────────────────────────────────────
+# ── Pages ────────────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
+@app.get("/home", response_class=HTMLResponse)
+def page_home(request: Request):
+    return templates.TemplateResponse("home.html", _base_ctx(request, active="home"))
+
+
+@app.get("/chart", response_class=HTMLResponse)
 def page_chart(request: Request):
     ctx = _base_ctx(request, active="chart")
     ctx.update({
@@ -42,6 +54,13 @@ def page_chart(request: Request):
         "default_type": "Residential housing" if "Residential housing" in ALL_TYPES else (ALL_TYPES[0] if ALL_TYPES else ""),
     })
     return templates.TemplateResponse("chart.html", ctx)
+
+
+@app.get("/map", response_class=HTMLResponse)
+def page_map(request: Request):
+    ctx = _base_ctx(request, active="map")
+    ctx["regions"] = ALL_REGIONS
+    return templates.TemplateResponse("map.html", ctx)
 
 
 @app.get("/info", response_class=HTMLResponse)
@@ -117,6 +136,16 @@ def api_state(
         },
         "chart": chart,
     })
+
+
+@app.get("/api/geo")
+def api_geo(level: str = "region", region: str | None = None):
+    reg = _norm(region)
+    try:
+        geojson = data.get_geo(level, reg)
+    except Exception as exc:
+        return JSONResponse({"type": "FeatureCollection", "features": [], "error": str(exc)})
+    return JSONResponse(geojson)
 
 
 def _build_subtitle(reg, prov, mun, zn, pt, cond) -> str:

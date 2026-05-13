@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Estate Insights — Map{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+{% endblock %}
+
+{% block content %}
+<div class="map-page" id="map-page">
+
+  <div class="filter-row">
+    <div class="filter-cell">
+      <label for="level">Level</label>
+      <select id="level">
+        <option value="region">Regions</option>
+        <option value="province">Provinces</option>
+        <option value="municipality">Municipalities</option>
+        <option value="zone">Zones</option>
+      </select>
+    </div>
+    <div class="filter-cell">
+      <label for="region">Region <span id="region-hint" style="font-size:0.75rem;opacity:0.6;">(select level first)</span></label>
+      <select id="region" disabled>
+        <option value="">— select region —</option>
+        {% for r in regions %}
+        <option value="{{ r }}">{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-cell" id="mun-cell" style="display:none;">
+      <label for="municipality">Municipality <span style="font-size:0.75rem;opacity:0.6;">(optional)</span></label>
+      <select id="municipality" disabled>
+        <option value="">All municipalities</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="map-legend"></div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const TILE_URL   = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const TILE_ATTR  = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
+  const BORDER_COL = '#0a1a2e';
+
+  // 5-stop colour ramp: low price (blue) → high price (red)
+  const RAMP = ['#4a90d9', '#5bb8a0', '#f0c040', '#e07830', '#e05050'];
+
+  const mapEl = document.getElementById('map');
+  const leafMap = L.map(mapEl, { zoomControl: true }).setView([42.0, 12.5], 6);
+  L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(leafMap);
+
+  let currentLayer = null;
+  let allFeatures  = [];
+  let seq          = 0;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function areaName(props) {
+    return props['Zone'] || props['Mun. name'] || props['Prov. name'] || props['Reg. name'] || '?';
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function rampColor(t) {
+    const scaled = Math.max(0, Math.min(0.9999, t)) * (RAMP.length - 1);
+    const lo     = Math.floor(scaled);
+    const hi     = lo + 1;
+    const frac   = scaled - lo;
+    // Parse hex, lerp each channel
+    function hexToRgb(h) {
+      const n = parseInt(h.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    const [r1, g1, b1] = hexToRgb(RAMP[lo]);
+    const [r2, g2, b2] = hexToRgb(RAMP[hi] || RAMP[lo]);
+    return `rgb(${Math.round(lerp(r1, r2, frac))},${Math.round(lerp(g1, g2, frac))},${Math.round(lerp(b1, b2, frac))})`;
+  }
+
+  function getPrice(props) {
+    const mn = parseFloat(props['Min. price']) || 0;
+    const mx = parseFloat(props['Max. price']) || 0;
+    return (mn + mx) / 2;
+  }
+
+  function buildLegend(minP, maxP) {
+    const legend = document.getElementById('map-legend');
+    if (minP === maxP) { legend.innerHTML = ''; return; }
+    const steps = RAMP.map((_, i) => {
+      const t = i / (RAMP.length - 1);
+      const price = Math.round(minP + (maxP - minP) * t);
+      return `<span class="legend-swatch" style="background:${rampColor(t)}"></span>`
+           + `<span class="legend-label">€${price.toLocaleString('it-IT')}</span>`;
+    });
+    legend.innerHTML = steps.join('');
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function renderFeatures(features) {
+    if (currentLayer) { leafMap.removeLayer(currentLayer); currentLayer = null; }
+    document.getElementById('map-legend').innerHTML = '';
+    if (!features.length) return;
+
+    const prices = features.map(f => getPrice(f.properties));
+    const minP   = Math.min(...prices);
+    const maxP   = Math.max(...prices);
+    const range  = maxP - minP || 1;
+
+    currentLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
+      style(feature) {
+        const t = (getPrice(feature.properties) - minP) / range;
+        return { fillColor: rampColor(t), fillOpacity: 0.4, weight: 1, color: BORDER_COL, opacity: 0.9 };
+      },
+      onEachFeature(feature, layer) {
+        const p   = feature.properties;
+        const mn  = (parseFloat(p['Min. price']) || 0).toLocaleString('it-IT');
+        const mx  = (parseFloat(p['Max. price']) || 0).toLocaleString('it-IT');
+        layer.bindTooltip(
+          `<strong>${escapeHtml(areaName(p))}</strong><br>Min: €${mn} / m²<br>Max: €${mx} / m²`,
+          { sticky: true, className: 'map-tooltip' }
+        );
+        layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.55, weight: 2, color: '#fff' }));
+        layer.on('mouseout',  () => currentLayer && currentLayer.resetStyle(layer));
+      }
+    }).addTo(leafMap);
+
+    try { leafMap.fitBounds(currentLayer.getBounds(), { padding: [16, 16] }); } catch (_) {}
+    buildLegend(minP, maxP);
+  }
+
+  // ── Dropdown helpers ───────────────────────────────────────────────────────
+  function populateMunDropdown(features) {
+    const sel  = document.getElementById('municipality');
+    const muns = [...new Set(
+      features.map(f => f.properties['Mun. name']).filter(Boolean)
+    )].sort();
+    sel.innerHTML = '<option value="">All municipalities</option>'
+      + muns.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+    sel.disabled = false;
+  }
+
+  function setRegionRequired(required) {
+    const hint = document.getElementById('region-hint');
+    const sel  = document.getElementById('region');
+    sel.disabled = !required;
+    hint.textContent = required ? '(required)' : '(select level first)';
+    hint.style.opacity = required ? '0.8' : '0.6';
+  }
+
+  function applyLevel(level) {
+    const munCell = document.getElementById('mun-cell');
+    const munSel  = document.getElementById('municipality');
+
+    if (level === 'region' || level === 'province') {
+      setRegionRequired(false);
+      document.getElementById('region').value = '';
+      munCell.style.display = 'none';
+      munSel.innerHTML = '<option value="">All municipalities</option>';
+      munSel.disabled  = true;
+      allFeatures = [];
+    } else if (level === 'municipality') {
+      setRegionRequired(true);
+      munCell.style.display = 'none';
+      munSel.disabled = true;
+      allFeatures = [];
+    } else if (level === 'zone') {
+      setRegionRequired(true);
+      munCell.style.display = '';
+      munSel.innerHTML = '<option value="">All municipalities</option>';
+      munSel.disabled  = true;
+      allFeatures = [];
+    }
+  }
+
+  // ── Main update ────────────────────────────────────────────────────────────
+  async function updateMap() {
+    const mySeq = ++seq;
+    const level  = document.getElementById('level').value;
+    const region = document.getElementById('region').value;
+
+    if ((level === 'municipality' || level === 'zone') && !region) {
+      if (currentLayer) { leafMap.removeLayer(currentLayer); currentLayer = null; }
+      document.getElementById('map-legend').innerHTML = '';
+      return;
+    }
+
+    const params = new URLSearchParams({ level });
+    if (region) params.set('region', region);
+
+    let geojson;
+    try {
+      const resp = await fetch(`/api/geo?${params}`);
+      if (mySeq !== seq) return;
+      geojson = await resp.json();
+    } catch (_) { return; }
+    if (mySeq !== seq) return;
+
+    allFeatures = geojson.features || [];
+
+    if (level === 'zone') {
+      populateMunDropdown(allFeatures);
+      renderFeatures(allFeatures);
+    } else {
+      renderFeatures(allFeatures);
+    }
+  }
+
+  // ── Event listeners ────────────────────────────────────────────────────────
+  document.getElementById('level').addEventListener('change', function () {
+    applyLevel(this.value);
+    updateMap();
+  });
+
+  document.getElementById('region').addEventListener('change', function () {
+    const munSel = document.getElementById('municipality');
+    munSel.innerHTML = '<option value="">All municipalities</option>';
+    munSel.disabled  = true;
+    allFeatures = [];
+    updateMap();
+  });
+
+  document.getElementById('municipality').addEventListener('change', function () {
+    const mun      = this.value;
+    const filtered = mun
+      ? allFeatures.filter(f => f.properties['Mun. name'] === mun)
+      : allFeatures;
+    renderFeatures(filtered);
+  });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  applyLevel('region');
+  updateMap();
+</script>
+{% endblock %}
