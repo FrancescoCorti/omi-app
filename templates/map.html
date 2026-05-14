@@ -45,20 +45,36 @@
 
 {% block scripts %}
 <script>
-  const TILE_URL   = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const TILE_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
   const TILE_ATTR  = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
-  const BORDER_COL = '#0a1a2e';
+
+  function getTileUrl() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? TILE_LIGHT : TILE_DARK;
+  }
+
+  function getBorderCol() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? '#c0baaf' : '#0a1a2e';
+  }
 
   // 5-stop colour ramp: low price (blue) → high price (red)
   const RAMP = ['#4a90d9', '#5bb8a0', '#f0c040', '#e07830', '#e05050'];
 
   const mapEl = document.getElementById('map');
   const leafMap = L.map(mapEl, { zoomControl: true }).setView([42.0, 12.5], 6);
-  L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(leafMap);
+  let tileLayer = L.tileLayer(getTileUrl(), { attribution: TILE_ATTR, maxZoom: 19 }).addTo(leafMap);
 
-  let currentLayer = null;
-  let allFeatures  = [];
-  let seq          = 0;
+  let currentLayer    = null;
+  let allFeatures     = [];
+  let displayedFeatures = [];
+  let seq             = 0;
+
+  // Swap tiles and re-render feature borders on theme change.
+  new MutationObserver(function () {
+    tileLayer.remove();
+    tileLayer = L.tileLayer(getTileUrl(), { attribution: TILE_ATTR, maxZoom: 19 }).addTo(leafMap);
+    if (displayedFeatures.length) renderFeatures(displayedFeatures);
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function escapeHtml(s) {
@@ -108,6 +124,7 @@
 
   // ── Render ────────────────────────────────────────────────────────────────
   function renderFeatures(features) {
+    displayedFeatures = features;
     if (currentLayer) { leafMap.removeLayer(currentLayer); currentLayer = null; }
     document.getElementById('map-legend').innerHTML = '';
     if (!features.length) return;
@@ -120,7 +137,7 @@
     currentLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
       style(feature) {
         const t = (getPrice(feature.properties) - minP) / range;
-        return { fillColor: rampColor(t), fillOpacity: 0.4, weight: 1, color: BORDER_COL, opacity: 0.9 };
+        return { fillColor: rampColor(t), fillOpacity: 0.4, weight: 1, color: getBorderCol(), opacity: 0.9 };
       },
       onEachFeature(feature, layer) {
         const p   = feature.properties;

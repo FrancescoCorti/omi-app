@@ -64,11 +64,21 @@
 {% block scripts %}
 <script>
 (function () {
-  const PAPER = "#030e38";
-  const TEXT = "#d9deef";
-  const COLOR_MIN = "steelblue";
+  const COLOR_MIN  = "steelblue";
   const COLOR_MEAN = "gray";
-  const COLOR_MAX = "tomato";
+  const COLOR_MAX  = "tomato";
+
+  function getThemeColors() {
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
+    return {
+      paper: light ? '#f0ece4' : '#030e38',
+      text:  light ? '#1a2035' : '#d4dbf0',
+      grid:  light ? 'rgba(26,32,53,0.06)'   : 'rgba(255,255,255,0.06)',
+      axis:  light ? 'rgba(26,32,53,0.18)'   : 'rgba(255,255,255,0.15)',
+      ttBg:  light ? 'rgba(255,255,255,0.97)' : 'rgba(12,26,50,0.95)',
+      ttBd:  light ? 'rgba(26,32,53,0.12)'   : 'rgba(255,255,255,0.1)',
+    };
+  }
 
   const chartEl = document.getElementById("chart");
   const chart = echarts.init(chartEl, null, { renderer: "canvas" });
@@ -132,61 +142,61 @@
   }
 
   function buildOption(data) {
+    const tc = getThemeColors();
+    const font = "Outfit, sans-serif";
     if (data.empty) {
       return {
-        backgroundColor: PAPER,
+        backgroundColor: tc.paper,
         title: {
           text: "No data for current selection",
           left: "center",
           top: "middle",
-          textStyle: { color: TEXT, fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 400 },
+          textStyle: { color: tc.text, fontFamily: font, fontSize: 16, fontWeight: 400 },
         },
       };
     }
-
     return {
-      backgroundColor: PAPER,
-      textStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+      backgroundColor: tc.paper,
+      textStyle: { color: tc.text, fontFamily: font },
       title: {
         text: "Buy Price Trends",
         subtext: data.subtitle,
         left: 0,
-        textStyle: { color: TEXT, fontFamily: "Inter, sans-serif", fontWeight: 600 },
-        subtextStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        textStyle: { color: tc.text, fontFamily: font, fontWeight: 600 },
+        subtextStyle: { color: tc.text, fontFamily: font, opacity: 0.6 },
       },
       grid: { left: 64, right: 24, top: 96, bottom: 80 },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "line", lineStyle: { color: "#888", type: "dashed", width: 1 } },
-        backgroundColor: "rgba(28, 43, 58, 0.95)",
-        borderColor: "rgba(255,255,255,0.15)",
-        textStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        backgroundColor: tc.ttBg,
+        borderColor: tc.ttBd,
+        textStyle: { color: tc.text, fontFamily: font },
         valueFormatter: (v) => (v == null ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })),
       },
       legend: {
         data: ["Max. price", "Mean price", "Min. price"],
-        right: 0,
-        top: 0,
-        textStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
+        right: 0, top: 0,
+        textStyle: { color: tc.text, fontFamily: font },
         icon: "roundRect",
       },
       xAxis: {
         type: "category",
         data: data.x,
-        name: "Year - Semester",
+        name: "Year – Semester",
         nameLocation: "middle",
         nameGap: 50,
-        nameTextStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
-        axisLabel: { color: TEXT, fontFamily: "Inter, sans-serif", rotate: -45 },
-        axisLine: { lineStyle: { color: "rgba(255,255,255,0.2)" } },
+        nameTextStyle: { color: tc.text, fontFamily: font },
+        axisLabel: { color: tc.text, fontFamily: font, rotate: -45 },
+        axisLine: { lineStyle: { color: tc.axis } },
       },
       yAxis: {
         type: "value",
         name: "Price (€/m²)",
-        nameTextStyle: { color: TEXT, fontFamily: "Inter, sans-serif" },
-        axisLabel: { color: TEXT, fontFamily: "Inter, sans-serif" },
-        axisLine: { lineStyle: { color: "rgba(255,255,255,0.2)" } },
-        splitLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
+        nameTextStyle: { color: tc.text, fontFamily: font },
+        axisLabel: { color: tc.text, fontFamily: font },
+        axisLine: { lineStyle: { color: tc.axis } },
+        splitLine: { lineStyle: { color: tc.grid } },
       },
       series: [
         { name: "Max. price",  type: "line", showSymbol: false, lineStyle: { color: COLOR_MAX,  width: 2 }, itemStyle: { color: COLOR_MAX  }, data: data.max },
@@ -198,6 +208,12 @@
 
   // Sequence number prevents an older in-flight response from overwriting a newer one.
   let seq = 0;
+  let lastChartData = null;
+
+  // Re-render chart colours when theme toggles (no API re-fetch needed).
+  new MutationObserver(function () {
+    if (lastChartData) chart.setOption(buildOption(lastChartData), true);
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   async function updateState() {
     const my = ++seq;
@@ -223,6 +239,7 @@
     paintSelect("zone",         data.options.zones,          filters.zone);
     paintSelect("condition",    data.options.conditions,     filters.condition);
 
+    lastChartData = data.chart;
     chart.setOption(buildOption(data.chart), true);
   }
 

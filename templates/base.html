@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Estate Insights{% endblock %}</title>
-  <link rel="stylesheet" href="/assets/style.css?v=4">
+  <!-- Apply saved theme before render to prevent flash -->
+  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css?v=5">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   {% block extra_head %}{% endblock %}
 </head>
@@ -13,7 +18,7 @@
     <div id="topnav-left">
       <a id="topnav-brand" href="/">
         {% if logo_exists %}
-          <img src="/assets/logo.svg" style="height: 28px;" alt="">
+          <img src="/assets/logo.svg" style="height: 50px;" alt="">
         {% endif %}
         <span id="topnav-title">Estate Insights</span>
       </a>
@@ -25,10 +30,45 @@
         <a class="nav-link {% if active == 'info' %}active{% endif %}" href="/info">Info</a>
       </nav>
     </div>
+    <div id="topnav-right">
+      <button id="theme-toggle" aria-label="Toggle colour theme">
+        <!-- Sun: visible in dark mode — click switches to light -->
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <!-- Moon: visible in light mode — click switches to dark -->
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
   </header>
   <main id="page-content">
     {% block content %}{% endblock %}
   </main>
+  <script>
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      btn.addEventListener('click', function () {
+        var current = document.documentElement.getAttribute('data-theme') || 'dark';
+        var next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.classList.add('theme-transitioning');
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        setTimeout(function () {
+          document.documentElement.classList.remove('theme-transitioning');
+        }, 400);
+      });
+    })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,78 +1,103 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
 
 /* ── Design tokens ──────────────────────────────────────────────────────────── */
 :root {
+  --topnav-height: 72px; /* Height of top navigation bar */
   --bg:            #030e38;
-  --sidebar-bg:    #1c2b3a;
-  --sidebar-text:  #cdd8e3;
-  --accent:        #4a90d9;
-  --text:          #d9deef;
-  --border:        #dee2e6;
-  --topnav-height: 64px;
+  --surface:       #0c1a32;
+  --nav-bg:        #060f2a;
+  --text:          #d4dbf0;
+  --text-muted:    #8797b8;
+  --accent:        #4a8fd4;
+  --accent-glow:   rgba(74, 143, 212, 0.2);
+  --border:        rgba(255, 255, 255, 0.08);
+  --input-bg:      #0c1a32;
+  --shadow:        0 4px 20px rgba(0, 0, 0, 0.45);
 }
 
-/* ── Reset ──────────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:            #f0ece4;
+  --surface:       #ffffff;
+  --nav-bg:        #ffffff;
+  --text:          #1a2035;
+  --text-muted:    #5a6478;
+  --accent:        #2a6bba;
+  --accent-glow:   rgba(42, 107, 186, 0.15);
+  --border:        rgba(26, 32, 53, 0.1);
+  --input-bg:      #ffffff;
+  --shadow:        0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Theme transition (only active during switch, prevents FOUC) ─────────────── */
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition:
+    background-color 0.32s ease,
+    color 0.22s ease,
+    border-color 0.32s ease,
+    box-shadow 0.32s ease !important;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Top nav ────────────────────────────────────────────────────────────────── */
+/* ── Top nav ─────────────────────────────────────────────────────────────────── */
 #topnav {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--topnav-height);
-  background: #111d2e;
+  background: var(--nav-bg);
   display: flex;
   align-items: center;
-  padding: 0 28px;
+  justify-content: space-between;
+  padding: 0 24px;
   z-index: 100;
-  border-bottom: 1px solid rgba(74, 144, 217, 0.18);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 #topnav-left {
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
   align-items: center;
 }
 
 #topnav-brand {
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
-  flex-shrink: 0;
   padding-right: 20px;
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 #topnav-brand img {
-  height: 28px;
+  height: 26px;
   width: auto;
   display: block;
-  flex-shrink: 0;
 }
 
 #topnav-title {
-  font-size: 0.88rem;
+  font-size: 0.9rem; /* Brand title size */
   font-weight: 600;
-  color: #fff;
-  letter-spacing: 0.07em;
+  color: var(--text);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 #topnav-sep {
   width: 1px;
-  height: 24px;
-  background: rgba(255, 255, 255, 0.15);
+  height: 28px; /* Separator line height */
+  background: var(--border);
   margin-right: 16px;
   flex-shrink: 0;
 }
@@ -86,70 +111,78 @@ body {
 #topnav .nav-link {
   display: block;
   text-decoration: none;
-  color: var(--sidebar-text);
-  border-radius: 7px;
-  padding: 6px 16px;
-  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 8px 18px; /* Increased horizontal padding for better clickability */
+  font-size: 1rem;
   font-weight: 500;
   letter-spacing: 0.02em;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
 }
 
 #topnav .nav-link:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--accent-glow);
+  color: var(--text);
 }
 
 #topnav .nav-link.active {
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 2px 10px rgba(74, 144, 217, 0.4);
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 600;
 }
 
-/* ── Content area ───────────────────────────────────────────────────────────── */
+/* ── Theme toggle button ─────────────────────────────────────────────────────── */
+#topnav-right {
+  display: flex;
+  align-items: center;
+}
+
+#theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+#theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+#theme-toggle svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* Sun shown in dark mode (action: switch to light) */
+.icon-sun  { display: block; }
+.icon-moon { display: none; }
+
+/* Moon shown in light mode (action: switch to dark) */
+[data-theme="light"] .icon-sun  { display: none; }
+[data-theme="light"] .icon-moon { display: block; }
+
+/* ── Page content ────────────────────────────────────────────────────────────── */
 #page-content {
-  padding: calc(var(--topnav-height) + 24px) 24px 24px;
+  padding: calc(var(--topnav-height) + 24px) 28px 28px;
   min-height: 100vh;
 }
 
-/* ── dcc.Dropdown overrides ─────────────────────────────────────────────────── */
-.Select-control {
-  background: var(--sidebar-bg) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
-  font-family: 'Inter', sans-serif !important;
-}
-
-.Select-control:hover { border-color: var(--accent) !important; }
-
-.is-focused .Select-control {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2) !important;
-}
-
-.Select-value-label,
-.Select-placeholder { color: var(--sidebar-text) !important; }
-
-.Select-arrow { border-top-color: var(--sidebar-text) !important; }
-
-.Select-menu-outer {
-  background: var(--sidebar-bg) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
-  font-family: 'Inter', sans-serif !important;
-}
-
-.Select-option {
-  background: var(--sidebar-bg) !important;
-  color: var(--sidebar-text) !important;
-}
-
-.Select-option.is-focused  { background: rgba(74, 144, 217, 0.15) !important; }
-.Select-option.is-selected { background: var(--accent) !important; color: #fff !important; }
-
-/* ── Chart page layout ─────────────────────────────────────────────────────── */
+/* ── Filter controls ─────────────────────────────────────────────────────────── */
 .filter-row {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 12px;
 }
 
@@ -162,26 +195,28 @@ body {
 
 .filter-cell label {
   display: block;
-  font-size: 0.85rem;
-  margin-bottom: 4px;
-  color: var(--sidebar-text);
+  font-size: 0.73rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  color: var(--text-muted);
 }
 
-/* ── Native <select> styling ───────────────────────────────────────────────── */
 .filter-cell select {
   width: 100%;
-  padding: 8px 36px 8px 12px;
-  background: var(--sidebar-bg);
-  color: var(--sidebar-text);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
+  padding: 8px 34px 8px 11px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.88rem;
   appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--sidebar-text) 50%),
-                    linear-gradient(135deg, var(--sidebar-text) 50%, transparent 50%);
-  background-position: calc(100% - 18px) calc(50% - 2px),
-                       calc(100% - 13px) calc(50% - 2px);
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+                    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 17px) calc(50% - 2px),
+                       calc(100% - 12px) calc(50% - 2px);
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
   cursor: pointer;
@@ -193,79 +228,114 @@ body {
 .filter-cell select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .filter-cell select:disabled {
-  opacity: 0.55;
+  opacity: 0.38;
   cursor: not-allowed;
 }
 
 .filter-cell select option {
-  background: var(--sidebar-bg);
-  color: var(--sidebar-text);
+  background: var(--input-bg);
+  color: var(--text);
 }
 
-/* ── Chart container ───────────────────────────────────────────────────────── */
+/* ── Chart page ──────────────────────────────────────────────────────────────── */
 #chart {
   width: 100%;
   height: 500px;
   margin-top: 12px;
 }
 
-/* ── Info page ─────────────────────────────────────────────────────────────── */
+/* ── Info page ───────────────────────────────────────────────────────────────── */
 .info-page h2 { color: var(--text); margin-top: 0; }
 
-/* ── Map page ──────────────────────────────────────────────────────────────── */
+/* ── Map page ────────────────────────────────────────────────────────────────── */
 #map {
   width: 100%;
   height: 600px;
-  border-radius: 6px;
+  border-radius: 8px;
   margin-top: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
+  overflow: hidden;
 }
 
-/* Override Leaflet's default white background to match dark theme */
 .leaflet-container { background: var(--bg); }
 
-/* Tooltip */
 .map-tooltip {
-  background: rgba(28, 43, 58, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--surface);
+  border: 1px solid var(--border);
   color: var(--text);
-  font-family: 'Inter', sans-serif;
-  font-size: 0.85rem;
-  border-radius: 4px;
-  padding: 6px 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.83rem;
+  border-radius: 6px;
+  padding: 7px 11px;
+  box-shadow: var(--shadow);
 }
 
-.leaflet-tooltip.map-tooltip::before { border-top-color: rgba(28, 43, 58, 0.9); }
+.leaflet-tooltip.map-tooltip::before { border-top-color: var(--surface); }
 
-/* Leaflet zoom controls */
 .leaflet-bar a {
-  background: var(--sidebar-bg) !important;
+  background: var(--surface) !important;
   color: var(--text) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  border-color: var(--border) !important;
 }
-.leaflet-bar a:hover { background: rgba(74, 144, 217, 0.2) !important; }
 
-/* Legend */
+.leaflet-bar a:hover {
+  background: var(--accent-glow) !important;
+  color: var(--accent) !important;
+}
+
 #map-legend {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 10px;
-  font-size: 0.8rem;
-  color: var(--sidebar-text);
+  font-size: 0.77rem;
+  color: var(--text-muted);
 }
 
 .legend-swatch {
   display: inline-block;
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
   vertical-align: middle;
 }
 
 .legend-label { vertical-align: middle; }
+
+/* ── dcc.Dropdown (legacy Dash overrides) ────────────────────────────────────── */
+.Select-control {
+  background: var(--input-bg) !important;
+  border-color: var(--border) !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+
+.Select-control:hover { border-color: var(--accent) !important; }
+
+.is-focused .Select-control {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-glow) !important;
+}
+
+.Select-value-label,
+.Select-placeholder { color: var(--text-muted) !important; }
+
+.Select-arrow { border-top-color: var(--text-muted) !important; }
+
+.Select-menu-outer {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+
+.Select-option {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+.Select-option.is-focused  { background: var(--accent-glow) !important; }
+.Select-option.is-selected { background: var(--accent) !important; color: #fff !important; }
