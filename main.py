@@ -98,12 +98,19 @@ def api_state(
     zones: list[str] = []
     if reg is not None and prov is not None and mun is not None:
         w, p = build_where(reg=reg, prov=prov, mun=mun)
-        zones = q(f"SELECT DISTINCT Zone FROM omi {w} ORDER BY Zone", p)["Zone"].tolist()
+        year_cond = "TRY_CAST(LEFT(Year_Semester, 4) AS INTEGER) >= 2014 AND Zone IS NOT NULL AND Zone != ''"
+        w_zones = (w + f" AND {year_cond}") if w else f"WHERE {year_cond}"
+        zones = q(f"SELECT DISTINCT Zone FROM omi {w_zones} ORDER BY Zone", p)["Zone"].tolist()
 
     w, p = build_where(reg=reg, prov=prov, mun=mun, zone=zn)
     conditions = q(f"SELECT DISTINCT Condition FROM omi {w} ORDER BY Condition", p)["Condition"].tolist()
 
+    subtitle = _build_subtitle(reg, prov, mun, zn, pt, cond)
+
     w, params = build_where(reg=reg, prov=prov, mun=mun, zone=zn, prop_type=pt, condition=cond)
+    if zn:
+        year_clause = " AND TRY_CAST(LEFT(Year_Semester, 4) AS INTEGER) >= 2014"
+        w = (w + year_clause) if w else f"WHERE {year_clause.strip(' AND ')}"
     df = q(
         f"""
         SELECT Year_Semester,
@@ -115,8 +122,6 @@ def api_state(
         """,
         params,
     )
-
-    subtitle = _build_subtitle(reg, prov, mun, zn, pt, cond)
 
     if df.empty:
         chart = {"x": [], "min": [], "mean": [], "max": [], "subtitle": subtitle, "empty": True}
