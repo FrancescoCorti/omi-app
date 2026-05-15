@@ -9,30 +9,59 @@
 {% block content %}
 <div class="map-page" id="map-page">
 
-  <div class="filter-row">
+  <div class="map-toggle-bar">
+    <div class="map-toggle-group">
+      <label>Scope</label>
+      <div class="period-toggle" id="scope-toggle">
+        <button class="period-btn period-btn--active" data-scope="national">National</button>
+        <button class="period-btn" data-scope="custom">Custom</button>
+      </div>
+    </div>
+
+    <div class="map-toggle-group" id="level-group">
+      <label>Level</label>
+      <div class="period-toggle" id="level-toggle">
+        <button class="period-btn period-btn--active" data-level="regions">Regions</button>
+        <button class="period-btn" data-level="provinces">Provinces</button>
+      </div>
+    </div>
+
+    <div class="map-toggle-group" id="perimeter-group" style="display:none;">
+      <label>Perimeters</label>
+      <div class="period-toggle" id="perimeter-toggle">
+        <button class="period-btn period-btn--active" data-perimeter="municipality">Municipal</button>
+        <button class="period-btn" data-perimeter="zone">Zone</button>
+      </div>
+    </div>
+
+    <div class="map-toggle-spacer"></div>
+
+    <button id="reset-btn" class="map-reset-btn" style="display:none;">Reset search</button>
+  </div>
+
+  <div class="filter-row" id="flow-regions" style="display:none;">
     <div class="filter-cell">
-      <label for="level">Level</label>
-      <select id="level">
-        <option value="region">Regions</option>
-        <option value="province">Provinces</option>
-        <option value="municipality">Municipalities</option>
-        <option value="zone">Zones</option>
-      </select>
+      <label>Region <span style="font-size:0.75rem;opacity:0.6;">(required)</span></label>
+      <div id="rg-region"></div>
     </div>
     <div class="filter-cell">
-      <label for="region">Region <span id="region-hint" style="font-size:0.75rem;opacity:0.6;">(select level first)</span></label>
-      <select id="region" disabled>
-        <option value="">— select region —</option>
-        {% for r in regions %}
-        <option value="{{ r }}">{{ r }}</option>
-        {% endfor %}
-      </select>
+      <label>Provinces <span style="font-size:0.75rem;opacity:0.6;">(optional)</span></label>
+      <div id="rg-provinces"></div>
     </div>
-    <div class="filter-cell" id="mun-cell" style="display:none;">
-      <label for="municipality">Municipality <span style="font-size:0.75rem;opacity:0.6;">(optional)</span></label>
-      <select id="municipality" disabled>
-        <option value="">All municipalities</option>
-      </select>
+    <div class="filter-cell">
+      <label>Municipalities <span style="font-size:0.75rem;opacity:0.6;">(optional)</span></label>
+      <div id="rg-municipalities"></div>
+    </div>
+  </div>
+
+  <div class="filter-row" id="flow-provinces" style="display:none;">
+    <div class="filter-cell">
+      <label>Provinces <span style="font-size:0.75rem;opacity:0.6;">(required · max 5)</span></label>
+      <div id="pf-provinces"></div>
+    </div>
+    <div class="filter-cell">
+      <label>Municipalities <span style="font-size:0.75rem;opacity:0.6;">(optional)</span></label>
+      <div id="pf-municipalities"></div>
     </div>
   </div>
 
@@ -45,6 +74,10 @@
 
 {% block scripts %}
 <script>
+(function () {
+  "use strict";
+
+  // ── Leaflet base ───────────────────────────────────────────────────────────
   const TILE_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
   const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
   const TILE_ATTR  = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
@@ -52,49 +85,40 @@
   function getTileUrl() {
     return document.documentElement.getAttribute('data-theme') === 'light' ? TILE_LIGHT : TILE_DARK;
   }
-
   function getBorderCol() {
     return document.documentElement.getAttribute('data-theme') === 'light' ? '#c0baaf' : '#0a1a2e';
   }
 
-  // 5-stop colour ramp: low price (blue) → high price (red)
   const RAMP = ['#4a90d9', '#5bb8a0', '#f0c040', '#e07830', '#e05050'];
 
-  const mapEl = document.getElementById('map');
+  const mapEl   = document.getElementById('map');
   const leafMap = L.map(mapEl, { zoomControl: true }).setView([42.0, 12.5], 6);
+  leafMap.zoomControl.setPosition('bottomleft');
   let tileLayer = L.tileLayer(getTileUrl(), { attribution: TILE_ATTR, maxZoom: 19 }).addTo(leafMap);
 
-  let currentLayer    = null;
-  let allFeatures     = [];
+  let currentLayer      = null;
   let displayedFeatures = [];
-  let seq             = 0;
+  let seq               = 0;
 
-  // Swap tiles and re-render feature borders on theme change.
   new MutationObserver(function () {
     tileLayer.remove();
     tileLayer = L.tileLayer(getTileUrl(), { attribution: TILE_ATTR, maxZoom: 19 }).addTo(leafMap);
     if (displayedFeatures.length) renderFeatures(displayedFeatures);
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-
-  function areaName(props) {
-    return props['Zone'] || props['Mun. name'] || props['Prov. name'] || props['Reg. name'] || '?';
+  function areaName(p) {
+    return p['Zone'] || p['Mun. name'] || p['Prov. name'] || p['Reg. name'] || '?';
   }
-
   function lerp(a, b, t) { return a + (b - a) * t; }
 
   function rampColor(t) {
     const scaled = Math.max(0, Math.min(0.9999, t)) * (RAMP.length - 1);
-    const lo     = Math.floor(scaled);
-    const hi     = lo + 1;
-    const frac   = scaled - lo;
-    // Parse hex, lerp each channel
+    const lo = Math.floor(scaled), hi = lo + 1, frac = scaled - lo;
     function hexToRgb(h) {
       const n = parseInt(h.slice(1), 16);
       return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -103,26 +127,28 @@
     const [r2, g2, b2] = hexToRgb(RAMP[hi] || RAMP[lo]);
     return `rgb(${Math.round(lerp(r1, r2, frac))},${Math.round(lerp(g1, g2, frac))},${Math.round(lerp(b1, b2, frac))})`;
   }
-
-  function getPrice(props) {
-    const mn = parseFloat(props['Min. price']) || 0;
-    const mx = parseFloat(props['Max. price']) || 0;
+  function getPrice(p) {
+    const mn = parseFloat(p['Min. price']) || 0;
+    const mx = parseFloat(p['Max. price']) || 0;
     return (mn + mx) / 2;
   }
-
   function buildLegend(minP, maxP) {
     const legend = document.getElementById('map-legend');
     if (minP === maxP) { legend.innerHTML = ''; return; }
-    const steps = RAMP.map((_, i) => {
+    legend.innerHTML = RAMP.map((_, i) => {
       const t = i / (RAMP.length - 1);
       const price = Math.round(minP + (maxP - minP) * t);
       return `<span class="legend-swatch" style="background:${rampColor(t)}"></span>`
            + `<span class="legend-label">€${price.toLocaleString('it-IT')}</span>`;
-    });
-    legend.innerHTML = steps.join('');
+    }).join('');
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  function clearMap() {
+    if (currentLayer) { leafMap.removeLayer(currentLayer); currentLayer = null; }
+    displayedFeatures = [];
+    document.getElementById('map-legend').innerHTML = '';
+  }
+
   function renderFeatures(features) {
     displayedFeatures = features;
     if (currentLayer) { leafMap.removeLayer(currentLayer); currentLayer = null; }
@@ -130,9 +156,8 @@
     if (!features.length) return;
 
     const prices = features.map(f => getPrice(f.properties));
-    const minP   = Math.min(...prices);
-    const maxP   = Math.max(...prices);
-    const range  = maxP - minP || 1;
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
+    const range = maxP - minP || 1;
 
     currentLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
       style(feature) {
@@ -140,9 +165,9 @@
         return { fillColor: rampColor(t), fillOpacity: 0.4, weight: 1, color: getBorderCol(), opacity: 0.9 };
       },
       onEachFeature(feature, layer) {
-        const p   = feature.properties;
-        const mn  = (parseFloat(p['Min. price']) || 0).toLocaleString('it-IT');
-        const mx  = (parseFloat(p['Max. price']) || 0).toLocaleString('it-IT');
+        const p  = feature.properties;
+        const mn = (parseFloat(p['Min. price']) || 0).toLocaleString('it-IT');
+        const mx = (parseFloat(p['Max. price']) || 0).toLocaleString('it-IT');
         layer.bindTooltip(
           `<strong>${escapeHtml(areaName(p))}</strong><br>Min: €${mn} / m²<br>Max: €${mx} / m²`,
           { sticky: true, className: 'map-tooltip' }
@@ -156,107 +181,443 @@
     buildLegend(minP, maxP);
   }
 
-  // ── Dropdown helpers ───────────────────────────────────────────────────────
-  function populateMunDropdown(features) {
-    const sel  = document.getElementById('municipality');
-    const muns = [...new Set(
-      features.map(f => f.properties['Mun. name']).filter(Boolean)
-    )].sort();
-    sel.innerHTML = '<option value="">All municipalities</option>'
-      + muns.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-    sel.disabled = false;
-  }
+  // ── MultiSelect component ──────────────────────────────────────────────────
+  class MultiSelect {
+    constructor(container, opts) {
+      opts = opts || {};
+      this.single      = !!opts.single;
+      this.max         = opts.max || 0;
+      this.placeholder = opts.placeholder || 'Select…';
+      this.clearLabel  = opts.clearLabel || '';
+      this.onChange    = opts.onChange || function () {};
+      this.options     = [];
+      this.selected    = new Set();
+      this.search      = '';
+      this.disabled    = false;
 
-  function setRegionRequired(required) {
-    const hint = document.getElementById('region-hint');
-    const sel  = document.getElementById('region');
-    sel.disabled = !required;
-    hint.textContent = required ? '(required)' : '(select level first)';
-    hint.style.opacity = required ? '0.8' : '0.6';
-  }
+      this.root = document.createElement('div');
+      this.root.className = 'ms-dropdown' + (this.single ? ' ms-dropdown--single' : '');
+      this.root.innerHTML =
+        '<button type="button" class="ms-trigger"><span></span></button>' +
+        '<div class="ms-panel">' +
+          '<input type="text" class="ms-search" placeholder="Search…">' +
+          '<div class="ms-list"></div>' +
+          '<div class="ms-warning" style="display:none;"></div>' +
+        '</div>';
+      container.appendChild(this.root);
 
-  function applyLevel(level) {
-    const munCell = document.getElementById('mun-cell');
-    const munSel  = document.getElementById('municipality');
+      this.elTrigger = this.root.querySelector('.ms-trigger');
+      this.elLabel   = this.root.querySelector('.ms-trigger > span');
+      this.elPanel   = this.root.querySelector('.ms-panel');
+      this.elSearch  = this.root.querySelector('.ms-search');
+      this.elList    = this.root.querySelector('.ms-list');
+      this.elWarn    = this.root.querySelector('.ms-warning');
 
-    if (level === 'region' || level === 'province') {
-      setRegionRequired(false);
-      document.getElementById('region').value = '';
-      munCell.style.display = 'none';
-      munSel.innerHTML = '<option value="">All municipalities</option>';
-      munSel.disabled  = true;
-      allFeatures = [];
-    } else if (level === 'municipality') {
-      setRegionRequired(true);
-      munCell.style.display = 'none';
-      munSel.disabled = true;
-      allFeatures = [];
-    } else if (level === 'zone') {
-      setRegionRequired(true);
-      munCell.style.display = '';
-      munSel.innerHTML = '<option value="">All municipalities</option>';
-      munSel.disabled  = true;
-      allFeatures = [];
+      this.elTrigger.addEventListener('click', () => {
+        if (this.disabled) return;
+        this.root.classList.contains('ms-dropdown--open') ? this._close() : this._open();
+      });
+      this.elSearch.addEventListener('input', () => {
+        this.search = this.elSearch.value.toLowerCase();
+        this._renderList();
+      });
+      // Close when a click lands outside this dropdown (also closes siblings
+      // when another dropdown's trigger is clicked).
+      document.addEventListener('click', (e) => {
+        if (!this.root.contains(e.target)) this._close();
+      });
+
+      this._renderLabel();
+    }
+
+    _open() {
+      this.root.classList.add('ms-dropdown--open');
+      this.elSearch.value = '';
+      this.search = '';
+      this._renderList();
+      this.elSearch.focus();
+    }
+    _close() {
+      this.root.classList.remove('ms-dropdown--open');
+    }
+
+    _renderLabel() {
+      const n = this.selected.size;
+      let txt;
+      if (n === 0) txt = this.placeholder;
+      else if (this.single || n === 1) txt = [...this.selected][0];
+      else txt = n + ' selected';
+      this.elLabel.textContent = txt;
+      this.elTrigger.classList.toggle('ms-trigger--placeholder', n === 0);
+    }
+
+    _atMax() {
+      return !this.single && this.max > 0 && this.selected.size >= this.max;
+    }
+
+    _renderList() {
+      const q = this.search;
+      const matches = this.options.filter(o => !q || o.toLowerCase().includes(q));
+      // "All …" clear row — only on optional multi-selects, only when not searching.
+      const allRow = (this.clearLabel && !this.single && !q)
+        ? `<div class="ms-item ms-item--all${this.selected.size === 0 ? ' ms-item--checked' : ''}" data-all="1">`
+          + `<span class="ms-checkbox"></span><span>${escapeHtml(this.clearLabel)}</span></div>`
+        : '';
+      if (!matches.length) {
+        this.elList.innerHTML = allRow || '<div class="ms-empty">No matches</div>';
+      } else {
+        const atMax = this._atMax();
+        this.elList.innerHTML = allRow + matches.map(o => {
+          const checked  = this.selected.has(o);
+          const disabled = atMax && !checked;
+          return `<div class="ms-item${checked ? ' ms-item--checked' : ''}`
+               + `${disabled ? ' ms-item--disabled' : ''}" data-val="${escapeHtml(o)}">`
+               + `<span class="ms-checkbox"></span><span>${escapeHtml(o)}</span></div>`;
+        }).join('');
+      }
+      this.elList.querySelectorAll('.ms-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (item.getAttribute('data-all')) this._clearAll();
+          else this._toggle(item.getAttribute('data-val'));
+        });
+      });
+      if (!this.single && this.max > 0 && this._atMax()) {
+        this.elWarn.textContent = `Maximum of ${this.max} provinces reached. Deselect one to add another.`;
+        this.elWarn.style.display = '';
+      } else {
+        this.elWarn.style.display = 'none';
+      }
+    }
+
+    _toggle(val) {
+      if (this.single) {
+        this.selected = new Set([val]);
+        this._renderLabel();
+        this._close();
+        this.onChange();
+        return;
+      }
+      if (this.selected.has(val)) {
+        this.selected.delete(val);
+      } else {
+        if (this._atMax()) return;
+        this.selected.add(val);
+      }
+      this._renderLabel();
+      this._renderList();
+      this.onChange();
+    }
+
+    _clearAll() {
+      if (this.selected.size === 0) return;
+      this.selected.clear();
+      this._renderLabel();
+      this._renderList();
+      this.onChange();
+    }
+
+    setOptions(values) {
+      this.options = values.slice();
+      let changed = false;
+      for (const v of [...this.selected]) {
+        if (!this.options.includes(v)) { this.selected.delete(v); changed = true; }
+      }
+      this._renderLabel();
+      if (this.root.classList.contains('ms-dropdown--open')) this._renderList();
+      return changed;
+    }
+    getSelected()  { return [...this.selected]; }
+    setSelected(values) {
+      this.selected = new Set((values || []).filter(v => this.options.includes(v)));
+      this._renderLabel();
+      if (this.root.classList.contains('ms-dropdown--open')) this._renderList();
+    }
+    clear() {
+      this.selected.clear();
+      this._renderLabel();
+      if (this.root.classList.contains('ms-dropdown--open')) this._renderList();
+    }
+    setDisabled(d) {
+      this.disabled = d;
+      this.root.classList.toggle('ms-dropdown--disabled', d);
+      if (d) this._close();
     }
   }
 
-  // ── Main update ────────────────────────────────────────────────────────────
-  async function updateMap() {
+  // ── State ──────────────────────────────────────────────────────────────────
+  const REGIONS = {{ regions | tojson }};
+
+  const state = {
+    scope:     'national',         // national | custom
+    level:     'regions',          // regions | provinces
+    perimeter: 'municipality',     // municipality | zone
+    regionsFlow:   { region: '', provinces: [], municipalities: [] },
+    provincesFlow: { provinces: [], municipalities: [] },
+  };
+  let savedCustomState = null;
+  let nationalProvinces = [];
+
+  // ── MultiSelect instances ──────────────────────────────────────────────────
+  const msRegion = new MultiSelect(document.getElementById('rg-region'),
+    { single: true, placeholder: 'Select region', onChange: onRegionChange });
+  msRegion.setOptions(REGIONS);
+
+  const msRgProv = new MultiSelect(document.getElementById('rg-provinces'),
+    { placeholder: 'All provinces', clearLabel: 'All provinces', onChange: onRgProvChange });
+  const msRgMun  = new MultiSelect(document.getElementById('rg-municipalities'),
+    { placeholder: 'All municipalities', clearLabel: 'All municipalities', onChange: onMunChange });
+
+  const msPfProv = new MultiSelect(document.getElementById('pf-provinces'),
+    { max: 5, placeholder: 'Select provinces', clearLabel: 'Clear selection', onChange: onPfProvChange });
+  const msPfMun  = new MultiSelect(document.getElementById('pf-municipalities'),
+    { placeholder: 'All municipalities', clearLabel: 'All municipalities', onChange: onMunChange });
+
+  // ── Geo fetch / render ─────────────────────────────────────────────────────
+  let lastGeoKey  = null;
+  let lastFetched = [];
+
+  function activeMunSelected() {
+    if (state.scope !== 'custom') return [];
+    return state.level === 'regions'
+      ? state.regionsFlow.municipalities
+      : state.provincesFlow.municipalities;
+  }
+
+  function applyMunFilterAndRender() {
+    const muns = activeMunSelected();
+    const feats = muns.length
+      ? lastFetched.filter(f => muns.includes(f.properties['Mun. name']))
+      : lastFetched;
+    renderFeatures(feats);
+  }
+
+  function geoRequest() {
+    // Returns { key, params } or null when the map should be cleared.
+    if (state.scope === 'national') {
+      const level = state.level === 'regions' ? 'region' : 'province';
+      return { key: 'nat:' + level, params: { level } };
+    }
+    if (state.level === 'regions') {
+      const r = state.regionsFlow.region;
+      if (!r) return null;
+      const provs = state.regionsFlow.provinces.slice().sort();
+      const params = { level: state.perimeter, region: r };
+      if (provs.length) params.provinces = provs.join(',');
+      return { key: `rg:${state.perimeter}:${r}:${provs.join('|')}`, params };
+    }
+    // provinces flow
+    const provs = state.provincesFlow.provinces.slice().sort();
+    if (!provs.length) return null;
+    return {
+      key: `pf:${state.perimeter}:${provs.join('|')}`,
+      params: { level: state.perimeter, provinces: provs.join(',') },
+    };
+  }
+
+  async function refresh() {
+    const req = geoRequest();
+    if (!req) { clearMap(); lastGeoKey = null; lastFetched = []; populateMunOptions([]); return; }
+
+    if (req.key === lastGeoKey) { applyMunFilterAndRender(); return; }
+
     const mySeq = ++seq;
-    const level  = document.getElementById('level').value;
-    const region = document.getElementById('region').value;
-
-    if ((level === 'municipality' || level === 'zone') && !region) {
-      if (currentLayer) { leafMap.removeLayer(currentLayer); currentLayer = null; }
-      document.getElementById('map-legend').innerHTML = '';
-      return;
-    }
-
-    const params = new URLSearchParams({ level });
-    if (region) params.set('region', region);
-
+    const qs = new URLSearchParams(req.params).toString();
     let geojson;
     try {
-      const resp = await fetch(`/api/geo?${params}`);
+      const resp = await fetch(`/api/geo?${qs}`);
       if (mySeq !== seq) return;
       geojson = await resp.json();
     } catch (_) { return; }
     if (mySeq !== seq) return;
 
-    allFeatures = geojson.features || [];
-
-    if (level === 'zone') {
-      populateMunDropdown(allFeatures);
-      renderFeatures(allFeatures);
-    } else {
-      renderFeatures(allFeatures);
-    }
+    lastGeoKey  = req.key;
+    lastFetched = geojson.features || [];
+    populateMunOptions(lastFetched);
+    applyMunFilterAndRender();
   }
 
-  // ── Event listeners ────────────────────────────────────────────────────────
-  document.getElementById('level').addEventListener('change', function () {
-    applyLevel(this.value);
-    updateMap();
+  // ── Option population ──────────────────────────────────────────────────────
+  function populateMunOptions(features) {
+    if (state.scope !== 'custom') return;
+    const muns = [...new Set(features.map(f => f.properties['Mun. name']).filter(Boolean))].sort();
+    const target = state.level === 'regions' ? msRgMun : msPfMun;
+    target.setOptions(muns);
+    if (state.level === 'regions') state.regionsFlow.municipalities = msRgMun.getSelected();
+    else state.provincesFlow.municipalities = msPfMun.getSelected();
+  }
+
+  async function loadRegionProvinces(region) {
+    try {
+      const resp = await fetch(`/api/state?region=${encodeURIComponent(region)}`);
+      const data = await resp.json();
+      msRgProv.setOptions(data.options.provinces || []);
+    } catch (_) {
+      msRgProv.setOptions([]);
+    }
+    state.regionsFlow.provinces = msRgProv.getSelected();
+  }
+
+  async function loadNationalProvinces() {
+    try {
+      const resp = await fetch('/api/map/options');
+      const data = await resp.json();
+      nationalProvinces = data.provinces || [];
+    } catch (_) { nationalProvinces = []; }
+    msPfProv.setOptions(nationalProvinces);
+  }
+
+  // ── State → UI ─────────────────────────────────────────────────────────────
+  function syncToggle(id, attr, value) {
+    document.querySelectorAll(`#${id} .period-btn`).forEach(b => {
+      b.classList.toggle('period-btn--active', b.getAttribute(attr) === value);
+    });
+  }
+
+  function applyState() {
+    syncToggle('scope-toggle',     'data-scope',     state.scope);
+    syncToggle('level-toggle',     'data-level',     state.level);
+    syncToggle('perimeter-toggle', 'data-perimeter', state.perimeter);
+
+    const custom = state.scope === 'custom';
+    document.getElementById('perimeter-group').style.display = custom ? '' : 'none';
+    document.getElementById('reset-btn').style.display       = custom ? '' : 'none';
+
+    document.getElementById('flow-regions').style.display =
+      (custom && state.level === 'regions') ? '' : 'none';
+    document.getElementById('flow-provinces').style.display =
+      (custom && state.level === 'provinces') ? '' : 'none';
+
+    // Perimeter toggle active only when a region/province is chosen in the active flow.
+    const hasSelection = custom && (
+      (state.level === 'regions'   && !!state.regionsFlow.region) ||
+      (state.level === 'provinces' && state.provincesFlow.provinces.length > 0)
+    );
+    document.getElementById('perimeter-group').classList.toggle('map-control--disabled', custom && !hasSelection);
+
+    refresh();
+  }
+
+  // ── Event handlers ─────────────────────────────────────────────────────────
+  function onRegionChange() {
+    state.regionsFlow.region = msRegion.getSelected()[0] || '';
+    msRgProv.clear();
+    msRgMun.clear();
+    state.regionsFlow.provinces = [];
+    state.regionsFlow.municipalities = [];
+    if (state.regionsFlow.region) loadRegionProvinces(state.regionsFlow.region).then(applyState);
+    else { msRgProv.setOptions([]); msRgMun.setOptions([]); applyState(); }
+  }
+
+  function onRgProvChange() {
+    state.regionsFlow.provinces = msRgProv.getSelected();
+    applyState();
+  }
+
+  function onPfProvChange() {
+    state.provincesFlow.provinces = msPfProv.getSelected();
+    applyState();
+  }
+
+  function onMunChange() {
+    if (state.level === 'regions') state.regionsFlow.municipalities = msRgMun.getSelected();
+    else state.provincesFlow.municipalities = msPfMun.getSelected();
+    // Municipality is a client-side filter only — no refetch needed.
+    applyMunFilterAndRender();
+  }
+
+  document.getElementById('scope-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.period-btn');
+    if (!btn) return;
+    const next = btn.getAttribute('data-scope');
+    if (next === state.scope) return;
+
+    if (next === 'national') {
+      savedCustomState = JSON.parse(JSON.stringify({
+        perimeter: state.perimeter,
+        regionsFlow: state.regionsFlow,
+        provincesFlow: state.provincesFlow,
+      }));
+      state.scope = 'national';
+    } else {
+      state.scope = 'custom';
+      if (savedCustomState) {
+        state.perimeter     = savedCustomState.perimeter;
+        state.regionsFlow   = JSON.parse(JSON.stringify(savedCustomState.regionsFlow));
+        state.provincesFlow = JSON.parse(JSON.stringify(savedCustomState.provincesFlow));
+        msRegion.setSelected(state.regionsFlow.region ? [state.regionsFlow.region] : []);
+        msRgProv.setSelected(state.regionsFlow.provinces);
+        msRgMun.setSelected(state.regionsFlow.municipalities);
+        msPfProv.setSelected(state.provincesFlow.provinces);
+        msPfMun.setSelected(state.provincesFlow.municipalities);
+      }
+    }
+    applyState();
   });
 
-  document.getElementById('region').addEventListener('change', function () {
-    const munSel = document.getElementById('municipality');
-    munSel.innerHTML = '<option value="">All municipalities</option>';
-    munSel.disabled  = true;
-    allFeatures = [];
-    updateMap();
+  document.getElementById('level-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.period-btn');
+    if (!btn) return;
+    const next = btn.getAttribute('data-level');
+    if (next === state.level) return;
+    state.level = next;
+    // Clear the abandoned flow; reset perimeter to default.
+    if (next === 'provinces') {
+      msRegion.clear(); msRgProv.clear(); msRgMun.clear();
+      state.regionsFlow = { region: '', provinces: [], municipalities: [] };
+    } else {
+      msPfProv.clear(); msPfMun.clear();
+      state.provincesFlow = { provinces: [], municipalities: [] };
+    }
+    state.perimeter = 'municipality';
+    lastGeoKey = null;
+    applyState();
   });
 
-  document.getElementById('municipality').addEventListener('change', function () {
-    const mun      = this.value;
-    const filtered = mun
-      ? allFeatures.filter(f => f.properties['Mun. name'] === mun)
-      : allFeatures;
-    renderFeatures(filtered);
+  document.getElementById('perimeter-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.period-btn');
+    if (!btn) return;
+    if (document.getElementById('perimeter-group').classList.contains('map-control--disabled')) return;
+    const next = btn.getAttribute('data-perimeter');
+    if (next === state.perimeter) return;
+    state.perimeter = next;
+    applyState();
   });
+
+  // Reset — inline two-step confirmation.
+  const resetBtn = document.getElementById('reset-btn');
+  let resetArmed = false, resetTimer = null;
+  resetBtn.addEventListener('click', () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      resetBtn.textContent = 'Confirm reset?';
+      resetBtn.classList.add('map-reset-btn--confirm');
+      resetTimer = setTimeout(() => {
+        resetArmed = false;
+        resetBtn.textContent = 'Reset search';
+        resetBtn.classList.remove('map-reset-btn--confirm');
+      }, 3000);
+      return;
+    }
+    clearTimeout(resetTimer);
+    resetArmed = false;
+    resetBtn.textContent = 'Reset search';
+    resetBtn.classList.remove('map-reset-btn--confirm');
+
+    msRegion.clear(); msRgProv.clear(); msRgMun.clear();
+    msPfProv.clear(); msPfMun.clear();
+    state.regionsFlow   = { region: '', provinces: [], municipalities: [] };
+    state.provincesFlow = { provinces: [], municipalities: [] };
+    state.perimeter     = 'municipality';
+    lastGeoKey = null;
+    applyState();
+  });
+
+  window.addEventListener('resize', () => setTimeout(() => leafMap.invalidateSize(), 100));
 
   // ── Init ───────────────────────────────────────────────────────────────────
-  applyLevel('region');
-  updateMap();
+  loadNationalProvinces();
+  applyState();
+})();
 </script>
 {% endblock %}

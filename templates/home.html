@@ -1,10 +1,772 @@
 {% extends "base.html" %}
 
-{% block title %}Estate Insights — Home{% endblock %}
+{% block title %}Estate Insights — Italian Real Estate Prices{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+/* ── Home page ───────────────────────────────────────────────────────────────── */
+.home-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 0 80px;
+  position: relative;
+}
+
+/* Ambient blobs */
+.home-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.home-bg::before {
+  content: '';
+  position: absolute;
+  width: 800px; height: 800px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(74,143,212,0.08) 0%, transparent 65%);
+  top: -180px; left: -140px;
+}
+.home-bg::after {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(74,143,212,0.05) 0%, transparent 65%);
+  bottom: 5%; right: -100px;
+}
+
+/* Dot grid */
+.home-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(circle, rgba(74,143,212,0.13) 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.45;
+}
+[data-theme="light"] .home-grid { opacity: 0.16; }
+
+/* ── Entrance animations ─────────────────────────────────────────────────────── */
+@keyframes homeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cueFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0);   opacity: 0.5; }
+  50%       { transform: translateX(-50%) translateY(7px); opacity: 0.9; }
+}
+
+.h-anim {
+  opacity: 0;
+  animation: homeUp 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.h-d1 { animation-delay: 0.05s; }
+.h-d2 { animation-delay: 0.17s; }
+.h-d3 { animation-delay: 0.29s; }
+.h-d4 { animation-delay: 0.41s; }
+.h-d5 { animation-delay: 0.53s; }
+
+/* Scroll-reveal for below-fold elements */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.scroll-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sr-d1 { transition-delay: 0.04s; }
+.sr-d2 { transition-delay: 0.14s; }
+.sr-d3 { transition-delay: 0.24s; }
+
+/* ── Hero ────────────────────────────────────────────────────────────────────── */
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: max(540px, calc(100vh - var(--topnav-height) - 24px));
+  padding: 48px 24px 96px;
+  position: relative;
+}
+
+.home-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 30px;
+}
+.home-hero__eyebrow::before,
+.home-hero__eyebrow::after {
+  content: '';
+  display: block;
+  width: 44px; height: 1px;
+  background: var(--accent);
+  opacity: 0.38;
+}
+
+.home-hero__title {
+  font-size: clamp(2.7rem, 6.5vw, 4.6rem);
+  font-weight: 600;
+  line-height: 1.08;
+  color: var(--text);
+  margin: 0 0 28px;
+  letter-spacing: -0.03em;
+  max-width: 720px;
+}
+.home-hero__title em {
+  font-style: normal;
+  background: linear-gradient(118deg, var(--accent) 15%, #92ccfc 88%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+[data-theme="light"] .home-hero__title em {
+  background: none;
+  -webkit-text-fill-color: var(--accent);
+}
+
+.home-hero__sub {
+  font-size: 1.05rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  max-width: 530px;
+  margin: 0 auto 46px;
+  line-height: 1.82;
+}
+
+.home-hero__ctas {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Scroll cue ──────────────────────────────────────────────────────────────── */
+.scroll-cue {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  animation: homeUp 0.6s 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.scroll-cue.hidden { opacity: 0 !important; }
+.scroll-cue__line {
+  width: 1px; height: 32px;
+  background: linear-gradient(to bottom, transparent, var(--text-muted));
+  opacity: 0.4;
+}
+.scroll-cue__icon {
+  width: 20px; height: 20px;
+  stroke: var(--text-muted);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: cueFloat 2s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.h-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 34px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.94rem;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  transition: transform 0.18s, opacity 0.18s, box-shadow 0.18s;
+}
+.h-btn-primary:hover {
+  transform: translateY(-2px);
+  opacity: 0.92;
+  box-shadow: 0 6px 20px rgba(74, 143, 212, 0.35);
+}
+
+.h-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 34px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.94rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 0.18s, background 0.18s, transform 0.18s;
+}
+.h-btn-ghost:hover {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  transform: translateY(-2px);
+}
+
+/* ── Section label ───────────────────────────────────────────────────────────── */
+.home-section-label {
+  font-size: 0.63rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.home-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Feature rows ────────────────────────────────────────────────────────────── */
+.home-features {
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+  margin-bottom: 72px;
+}
+
+.feature-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 56px;
+  align-items: center;
+}
+
+/* Reverse: image left, text right */
+.feature-row--reverse .feature-row__img { order: -1; }
+
+/* Text side */
+.feature-row__num {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 14px;
+  opacity: 0.7;
+}
+.feature-row__title {
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 14px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.feature-row__desc {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.78;
+  margin: 0 0 28px;
+}
+.feature-row__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: gap 0.18s;
+}
+.feature-row__link:hover { gap: 13px; }
+.feature-row__link svg {
+  width: 13px; height: 13px;
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Widget side */
+.feature-row__widget {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Map widget: background follows page background, borders always dark */
+.feature-row__widget--map { background: var(--bg); }
+.feature-row__widget--map .leaflet-container { background: var(--bg) !important; }
+.feature-row__widget--map .mini-map-hint { background: var(--bg); }
+
+/* Mini controls bar */
+.mini-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mini-ctrl__label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.mini-select {
+  flex: 1;
+  padding: 5px 28px 5px 9px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.78rem;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+                    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 13px) calc(50% - 2px),
+                       calc(100% - 8px)  calc(50% - 2px);
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.mini-select:focus { outline: none; border-color: var(--accent); }
+
+/* Chart and map canvases */
+#mini-chart { width: 100%; height: 240px; }
+#mini-map   { width: 100%; height: 280px; }
+
+/* Map hint badge */
+.mini-map-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 500;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 8px;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* ── Stats strip ─────────────────────────────────────────────────────────────── */
+.home-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.stat-item {
+  background: var(--surface);
+  padding: 30px 20px;
+  text-align: center;
+}
+.stat-item__value {
+  font-size: 2.1rem;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 9px;
+  letter-spacing: -0.025em;
+}
+.stat-item__label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── About strip ─────────────────────────────────────────────────────────────── */
+.home-about {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 28px;
+}
+.home-about h3 {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 7px;
+}
+.home-about p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.74;
+  margin: 0;
+}
+.home-about a { color: var(--accent); text-decoration: none; }
+.home-about a:hover { text-decoration: underline; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .feature-row                { grid-template-columns: 1fr; gap: 28px; }
+  .feature-row--reverse .feature-row__img { order: 0; }
+  .home-features              { gap: 52px; margin-bottom: 52px; }
+}
+@media (max-width: 640px) {
+  .home-stats             { grid-template-columns: 1fr; }
+  .home-hero__title       { font-size: 2.3rem; }
+  .home-hero              { padding: 32px 16px 80px; min-height: auto; }
+  .scroll-cue             { bottom: 18px; }
+}
+</style>
+{% endblock %}
 
 {% block content %}
+<div class="home-bg"  aria-hidden="true"></div>
+<div class="home-grid" aria-hidden="true"></div>
+
 <div class="home-page">
-  <h2>Home page</h2>
-  <p>Content coming soon.</p>
+
+  <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+  <section class="home-hero" id="home-hero">
+    <p class="home-hero__eyebrow h-anim h-d1">Estate Insights</p>
+    <h1 class="home-hero__title h-anim h-d2">
+      Italian Real Estate<br><em>Prices Explorer</em>
+    </h1>
+    <p class="home-hero__sub h-anim h-d3">
+      Explore official price estimates across every Italian region, province,
+      municipality, and zone — from 2004 to today.
+    </p>
+    <div class="home-hero__ctas h-anim h-d4">
+      <a href="/chart" class="h-btn-primary">
+        Price Trend Chart
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
+      <a href="/map" class="h-btn-ghost">
+        Interactive Map
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
+    </div>
+
+    <div class="scroll-cue" id="scroll-cue" aria-hidden="true">
+      <svg class="scroll-cue__icon" viewBox="0 0 24 24">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ── Below fold ────────────────────────────────────────────────────────── -->
+  <section aria-label="Features and data overview">
+
+    <p class="home-section-label scroll-reveal sr-d1">Explore the data</p>
+
+    <!-- Feature rows -->
+    <div class="home-features">
+
+      <!-- Chart: text left, widget right -->
+      <div class="feature-row scroll-reveal sr-d2">
+        <div class="feature-row__text">
+          <span class="feature-row__num">01 — Price Trend Chart</span>
+          <h2 class="feature-row__title">Track prices<br>over two decades</h2>
+          <p class="feature-row__desc">
+            Visualise min, mean, and max prices per m² from 2004 to today.
+            Drill down through four geographic levels — region, province,
+            municipality, zone — and filter by property type and condition.
+          </p>
+          <a href="/chart" class="feature-row__link">
+            Open chart
+            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+        <div class="feature-row__widget">
+          <div class="mini-ctrl">
+            <span class="mini-ctrl__label">Type</span>
+            <select class="mini-select" id="mini-type">
+              <option value="">National average</option>
+              {% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+            </select>
+          </div>
+          <div id="mini-chart"></div>
+        </div>
+      </div>
+
+      <!-- Map: widget left, text right -->
+      <div class="feature-row feature-row--reverse scroll-reveal sr-d2">
+        <div class="feature-row__text">
+          <span class="feature-row__num">02 — Interactive Map</span>
+          <h2 class="feature-row__title">See prices<br>across the territory</h2>
+          <p class="feature-row__desc">
+            Explore the geographic distribution of real estate values across Italy.
+            Switch between regions, provinces, municipalities, and OMI zones on an
+            interactive colour-coded map.
+          </p>
+          <a href="/map" class="feature-row__link">
+            Open map
+            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+        <div class="feature-row__widget feature-row__widget--map">
+          <div id="mini-map"></div>
+          <span class="mini-map-hint">hover to explore</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Stats strip -->
+    <div class="home-stats scroll-reveal sr-d2">
+      <div class="stat-item">
+        <div class="stat-item__value">7M+</div>
+        <div class="stat-item__label">Price records</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-item__value">20+</div>
+        <div class="stat-item__label">Years of data</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-item__value">20</div>
+        <div class="stat-item__label">Italian regions</div>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="home-about scroll-reveal sr-d3">
+      <h3>About the data</h3>
+      <p>
+        Prices are sourced from the <strong>OMI</strong> (Osservatorio del Mercato Immobiliare),
+        the official Italian real estate observatory managed by the Italian Taxing Agency
+        (Agenzia delle Entrate). Data covers residential and commercial property types across
+        all Italian territories, updated every semester.
+        <a href="/info">Learn more →</a>
+      </p>
+    </div>
+
+  </section>
+
 </div>
+
+<script>
+  // ── Scroll-reveal ──────────────────────────────────────────────────────────
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.scroll-reveal').forEach(el => revealObs.observe(el));
+
+  // ── Scroll cue ─────────────────────────────────────────────────────────────
+  const heroEl = document.getElementById('home-hero');
+  const cueEl  = document.getElementById('scroll-cue');
+  if (heroEl && cueEl) {
+    const cueObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => cueEl.classList.toggle('hidden', !e.isIntersecting));
+    }, { threshold: 0.3 });
+    cueObs.observe(heroEl);
+  }
+
+  // ── Mini chart ─────────────────────────────────────────────────────────────
+  (function () {
+    const chartEl = document.getElementById('mini-chart');
+    const typeEl  = document.getElementById('mini-type');
+    const mc = echarts.init(chartEl, null, { renderer: 'canvas' });
+
+    function themeColors() {
+      const light = document.documentElement.getAttribute('data-theme') === 'light';
+      return {
+        paper: light ? '#ffffff'                  : '#0c1a32',
+        text:  light ? '#1a2035'                  : '#d4dbf0',
+        muted: light ? '#5a6478'                  : '#8797b8',
+        grid:  light ? 'rgba(26,32,53,0.06)'      : 'rgba(255,255,255,0.06)',
+        axis:  light ? 'rgba(26,32,53,0.15)'      : 'rgba(255,255,255,0.12)',
+        ttBg:  light ? 'rgba(255,255,255,0.97)'   : 'rgba(12,26,50,0.97)',
+        ttBd:  light ? 'rgba(26,32,53,0.12)'      : 'rgba(255,255,255,0.1)',
+      };
+    }
+
+    let lastData = null;
+
+    function buildMiniOption(data) {
+      const tc = themeColors();
+      const font = 'Outfit, sans-serif';
+      if (!data || data.empty) return {
+        backgroundColor: tc.paper,
+        title: { text: 'No data', left: 'center', top: 'middle',
+                 textStyle: { color: tc.muted, fontFamily: font, fontSize: 13 } }
+      };
+      return {
+        backgroundColor: tc.paper,
+        textStyle: { color: tc.text, fontFamily: font },
+        animation: true,
+        grid: { left: 56, right: 16, top: 16, bottom: 36 },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'line', lineStyle: { color: '#888', type: 'dashed', width: 1 } },
+          backgroundColor: tc.ttBg,
+          borderColor: tc.ttBd,
+          textStyle: { color: tc.text, fontFamily: font, fontSize: 12 },
+          valueFormatter: v => v == null ? '—' : '€' + Number(v).toLocaleString('it-IT', { maximumFractionDigits: 0 }) + '/m²',
+        },
+        xAxis: {
+          type: 'category', data: data.x,
+          axisLabel: { color: tc.muted, fontSize: 10, interval: Math.floor(data.x.length / 5) },
+          axisLine: { lineStyle: { color: tc.axis } },
+          splitLine: { show: false },
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: { color: tc.muted, fontSize: 10, formatter: v => '€' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v) },
+          splitLine: { lineStyle: { color: tc.grid } },
+          axisLine: { show: false },
+        },
+        series: [
+          { name: 'Min',  type: 'line', data: data.min,  smooth: true, showSymbol: false,
+            lineStyle: { color: 'steelblue', width: 1.5, type: 'dashed' },
+            itemStyle: { color: 'steelblue' }, areaStyle: { color: 'rgba(70,130,180,0.06)' } },
+          { name: 'Mean', type: 'line', data: data.mean, smooth: true, showSymbol: false,
+            lineStyle: { color: '#4a8fd4', width: 2 },
+            itemStyle: { color: '#4a8fd4' } },
+          { name: 'Max',  type: 'line', data: data.max,  smooth: true, showSymbol: false,
+            lineStyle: { color: 'tomato', width: 1.5, type: 'dashed' },
+            itemStyle: { color: 'tomato' }, areaStyle: { color: 'rgba(255,99,71,0.04)' } },
+        ],
+      };
+    }
+
+    function loadChart() {
+      const type = typeEl ? typeEl.value : '';
+      const url  = '/api/state' + (type ? '?prop_type=' + encodeURIComponent(type) : '');
+      fetch(url)
+        .then(r => r.json())
+        .then(d => { lastData = d.chart; mc.setOption(buildMiniOption(lastData), true); })
+        .catch(() => {});
+    }
+
+    loadChart();
+    if (typeEl) typeEl.addEventListener('change', loadChart);
+    window.addEventListener('resize', () => mc.resize());
+
+    new MutationObserver(() => {
+      if (lastData) mc.setOption(buildMiniOption(lastData), true);
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  })();
+
+  // ── Mini map ───────────────────────────────────────────────────────────────
+  (function () {
+    const mapEl = document.getElementById('mini-map');
+    if (!mapEl || typeof L === 'undefined') return;
+
+    const miniMap = L.map(mapEl, {
+      zoomControl: false, attributionControl: false,
+      scrollWheelZoom: false, dragging: true, doubleClickZoom: false,
+    });
+
+    const RAMP = ['#4a90d9', '#5bb8a0', '#f0c040', '#e07830', '#e05050'];
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function rampColor(t) {
+      const scaled = Math.max(0, Math.min(0.9999, t)) * (RAMP.length - 1);
+      const lo = Math.floor(scaled), hi = lo + 1, frac = scaled - lo;
+      function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+      const [r1, g1, b1] = hexToRgb(RAMP[lo]);
+      const [r2, g2, b2] = hexToRgb(RAMP[hi] || RAMP[lo]);
+      return `rgb(${Math.round(lerp(r1,r2,frac))},${Math.round(lerp(g1,g2,frac))},${Math.round(lerp(b1,b2,frac))})`;
+    }
+
+    function getBorderCol() { return '#0a1a2e'; }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function getPrice(p) {
+      return ((parseFloat(p['Min. price']) || 0) + (parseFloat(p['Max. price']) || 0)) / 2;
+    }
+
+    let currentLayer = null;
+
+    function renderMiniMap(geojson) {
+      if (currentLayer) { currentLayer.remove(); currentLayer = null; }
+      const features = geojson.features || [];
+      if (!features.length) return;
+
+      const prices = features.map(f => getPrice(f.properties));
+      const minP = Math.min(...prices), maxP = Math.max(...prices);
+      const range = maxP - minP || 1;
+
+      currentLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
+        style(feature) {
+          const t = (getPrice(feature.properties) - minP) / range;
+          return { fillColor: rampColor(t), fillOpacity: 0.5, weight: 1, color: getBorderCol(), opacity: 0.9 };
+        },
+        onEachFeature(feature, layer) {
+          const p  = feature.properties;
+          const nm = escapeHtml(p['Reg. name'] || p['Prov. name'] || '?');
+          const mn = (parseFloat(p['Min. price']) || 0).toLocaleString('it-IT');
+          const mx = (parseFloat(p['Max. price']) || 0).toLocaleString('it-IT');
+          layer.bindTooltip(
+            `<strong>${nm}</strong><br>Min: €${mn} / m²<br>Max: €${mx} / m²`,
+            { sticky: true, className: 'map-tooltip' }
+          );
+          layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75, weight: 2, color: '#fff' }));
+          layer.on('mouseout',  () => currentLayer && currentLayer.resetStyle(layer));
+        },
+      }).addTo(miniMap);
+
+      miniMap.fitBounds(currentLayer.getBounds(), { padding: [6, 6] });
+    }
+
+    fetch('/api/geo?level=region')
+      .then(r => r.json())
+      .then(renderMiniMap)
+      .catch(() => {});
+
+  })();
+</script>
 {% endblock %}

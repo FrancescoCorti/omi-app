@@ -113,28 +113,67 @@ def _load_zone_province(province: str) -> gpd.GeoDataFrame:
     return _geo_cache[key]
 
 
-def get_geo(level: str, region: str | None = None) -> dict:
-    """Return a GeoJSON FeatureCollection dict for the requested level/region."""
+def all_provinces() -> list[str]:
+    """Full national province list (only provinces we have geometry for)."""
+    return sorted(_zone_prov_index.keys())
+
+
+def _concat_gdfs(gdfs: list[gpd.GeoDataFrame]) -> gpd.GeoDataFrame | None:
+    gdfs = [g for g in gdfs if g is not None and not g.empty]
+    if not gdfs:
+        return None
+    return gpd.GeoDataFrame(
+        pd.concat(gdfs, ignore_index=True),
+        geometry="geometry",
+        crs=gdfs[0].crs,
+    )
+
+
+def _municipalities_geo(region, provinces):
+    if region:
+        gdf = _load_mun(region)
+        if provinces:
+            gdf = gdf[gdf["Prov. name"].isin(provinces)]
+        return gdf
+    if provinces:
+        by_region: dict[str, list[str]] = {}
+        for p in provinces:
+            r = _zone_prov_index.get(p)
+            if r:
+                by_region.setdefault(r, []).append(p)
+        out = []
+        for r, provs in by_region.items():
+            g = _load_mun(r)
+            out.append(g[g["Prov. name"].isin(provs)])
+        return _concat_gdfs(out)
+    return None
+
+
+def _zones_geo(region, provinces):
+    if not provinces and region:
+        provinces = [p for p, r in _zone_prov_index.items() if r == region]
+    if not provinces:
+        return None
+    out = []
+    for p in provinces:
+        try:
+            out.append(_load_zone_province(p))
+        except Exception:
+            continue
+    return _concat_gdfs(out)
+
+
+def get_geo(level: str, region: str | None = None, provinces: list[str] | None = None) -> dict:
+    """Return a GeoJSON FeatureCollection dict for the requested level/region/provinces."""
+    provinces = provinces or None
     if level == "region":
         gdf = _geo_cache.get("region")
     elif level == "province":
         gdf = _geo_cache.get("province")
     elif level == "municipality":
-        if not region:
-            return {"type": "FeatureCollection", "features": []}
-        gdf = _load_mun(region)
+        gdf = _municipalities_geo(region, provinces)
     elif level == "zone":
-        if not region:
-            return {"type": "FeatureCollection", "features": []}
-        provinces = [p for p, r in _zone_prov_index.items() if r == region]
-        gdfs = [_load_zone_province(p) for p in provinces]
-        if not gdfs:
-            return {"type": "FeatureCollection", "features": []}
-        gdf = gpd.GeoDataFrame(
-            pd.concat(gdfs, ignore_index=True),
-            geometry="geometry",
-            crs=gdfs[0].crs,
-        )
+        gdf = _zones_geo(region, provinces)
     else:
         return {"type": "FeatureCollection", "features": []}
 

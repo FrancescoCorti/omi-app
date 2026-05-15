@@ -31,7 +31,7 @@
       </div>
 
       <div class="filter-cell">
-        <label for="f-zone">Zone (only after 2014)</label>
+        <label for="f-zone">Zone <span style="font-size:0.75rem;opacity:0.6;">(only after 2014)</span></label>
         <select id="f-zone" name="zone" disabled>
           <option value="" selected>Average (all zones)</option>
         </select>
@@ -53,6 +53,15 @@
         <select id="f-condition" name="condition">
           <option value="" selected>Average (all conditions)</option>
         </select>
+      </div>
+
+      <div class="filter-cell filter-cell--period">
+        <label>Time range</label>
+        <div class="period-toggle">
+          <button class="period-btn" data-period="5y">5Y</button>
+          <button class="period-btn" data-period="10y">10Y</button>
+          <button class="period-btn period-btn--active" data-period="max">MAX</button>
+        </div>
       </div>
     </div>
   </form>
@@ -183,11 +192,14 @@
       xAxis: {
         type: "category",
         data: data.x,
-        name: "Year – Semester",
+        name: "Year",
         nameLocation: "middle",
         nameGap: 50,
         nameTextStyle: { color: tc.text, fontFamily: font },
-        axisLabel: { color: tc.text, fontFamily: font, rotate: -45 },
+        axisLabel: {
+          color: tc.text, fontFamily: font, rotate: -45,
+          formatter: (val) => val.endsWith("S1") ? val.split(" - ")[0] : "",
+        },
         axisLine: { lineStyle: { color: tc.axis } },
       },
       yAxis: {
@@ -206,13 +218,68 @@
     };
   }
 
+  const YEAR_MARKS = [
+    { x: "2014 - S1", label: "OMI methodological change (2014)", side: "right" },
+    { x: "2024 - S1", label: "OMI methodological change (2024)", side: "left" },
+  ];
+
+  function drawYearMarkers(xData) {
+    chartEl.querySelectorAll(".omi-marker").forEach(el => el.remove());
+    if (!xData || !xData.length) return;
+    chartEl.style.position = "relative";
+    const tc = getThemeColors();
+    const h = chartEl.clientHeight;
+    const gridTop = 96, gridBottom = h - 80;
+    for (const { x, label, side } of YEAR_MARKS) {
+      const idx = xData.indexOf(x);
+      if (idx < 0) continue;
+      const px = chart.convertToPixel({ xAxisIndex: 0 }, idx);
+
+      const wrap = document.createElement("div");
+      wrap.className = "omi-marker";
+      wrap.style.cssText = `position:absolute;left:${px - 5}px;top:${gridTop}px;width:11px;height:${gridBottom - gridTop}px;z-index:100;cursor:default;`;
+
+      const line = document.createElement("div");
+      line.style.cssText = `position:absolute;left:5px;top:0;width:0;height:100%;border-left:1.5px dashed rgba(255,190,60,0.72);pointer-events:none;`;
+
+      const tip = document.createElement("div");
+      const tipSide = side === "left" ? "right:12px;" : "left:12px;";
+      tip.style.cssText = `display:none;position:absolute;top:4px;${tipSide}padding:5px 9px;font-size:11px;font-family:Outfit,sans-serif;white-space:nowrap;border-radius:3px;border:1px solid rgba(255,190,60,0.55);pointer-events:none;background:${tc.ttBg};color:${tc.text};`;
+      tip.textContent = label;
+
+      wrap.addEventListener("mouseenter", () => { tip.style.display = "block"; });
+      wrap.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+      wrap.appendChild(line);
+      wrap.appendChild(tip);
+      chartEl.appendChild(wrap);
+    }
+  }
+
   // Sequence number prevents an older in-flight response from overwriting a newer one.
   let seq = 0;
   let lastChartData = null;
+  let currentPeriod = "max";
+
+  function sliceData(chartData) {
+    if (currentPeriod === "max" || !chartData || chartData.empty) return chartData;
+    const keep = currentPeriod === "5y" ? 10 : 20;
+    const s = Math.max(0, chartData.x.length - keep);
+    return {
+      ...chartData,
+      x:    chartData.x.slice(s),
+      min:  chartData.min.slice(s),
+      mean: chartData.mean.slice(s),
+      max:  chartData.max.slice(s),
+    };
+  }
+
+  chart.on("finished", () => {
+    if (lastChartData && !lastChartData.empty) drawYearMarkers(sliceData(lastChartData).x);
+  });
 
   // Re-render chart colours when theme toggles (no API re-fetch needed).
   new MutationObserver(function () {
-    if (lastChartData) chart.setOption(buildOption(lastChartData), true);
+    if (lastChartData) chart.setOption(buildOption(sliceData(lastChartData)), true);
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   async function updateState() {
@@ -240,7 +307,7 @@
     paintSelect("condition",    data.options.conditions,     filters.condition);
 
     lastChartData = data.chart;
-    chart.setOption(buildOption(data.chart), true);
+    chart.setOption(buildOption(sliceData(data.chart)), true);
   }
 
   document.getElementById("chart-page").addEventListener("change", (e) => {
@@ -249,6 +316,15 @@
       clearDownstream(t.name);
       updateState();
     }
+  });
+
+  document.getElementById("filter-form").addEventListener("click", (e) => {
+    const btn = e.target.closest(".period-btn");
+    if (!btn) return;
+    document.querySelectorAll(".period-btn").forEach(b => b.classList.remove("period-btn--active"));
+    btn.classList.add("period-btn--active");
+    currentPeriod = btn.dataset.period;
+    if (lastChartData) chart.setOption(buildOption(sliceData(lastChartData)), true);
   });
 
   window.addEventListener("resize", () => chart.resize());

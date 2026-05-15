@@ -42,7 +42,9 @@ def _norm(v: str | None) -> str | None:
 @app.get("/", response_class=HTMLResponse)
 @app.get("/home", response_class=HTMLResponse)
 def page_home(request: Request):
-    return templates.TemplateResponse("home.html", _base_ctx(request, active="home"))
+    ctx = _base_ctx(request, active="home")
+    ctx["types"] = ALL_TYPES
+    return templates.TemplateResponse("home.html", ctx)
 
 
 @app.get("/chart", response_class=HTMLResponse)
@@ -144,13 +146,20 @@ def api_state(
 
 
 @app.get("/api/geo")
-def api_geo(level: str = "region", region: str | None = None):
+def api_geo(level: str = "region", region: str | None = None, provinces: str | None = None):
     reg = _norm(region)
+    prov_list = [p.strip() for p in provinces.split(",")] if provinces else []
+    prov_list = [p for p in prov_list if p] or None
     try:
-        geojson = data.get_geo(level, reg)
+        geojson = data.get_geo(level, reg, prov_list)
     except Exception as exc:
         return JSONResponse({"type": "FeatureCollection", "features": [], "error": str(exc)})
     return JSONResponse(geojson)
+
+
+@app.get("/api/map/options")
+def api_map_options():
+    return JSONResponse({"provinces": data.all_provinces()})
 
 
 def _build_subtitle(reg, prov, mun, zn, pt, cond) -> str:
