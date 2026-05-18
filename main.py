@@ -13,6 +13,7 @@ from data import q, build_where, ALL_REGIONS, ALL_TYPES
 
 BASE_DIR = Path(__file__).parent
 LOGO_FILE = BASE_DIR / "assets" / "logo.svg"
+LOGO_DARK_FILE = BASE_DIR / "assets" / "logo_dark.svg"
 
 app = FastAPI()
 app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
@@ -29,6 +30,7 @@ def _base_ctx(request: Request, active: str) -> dict:
         "request": request,
         "active": active,
         "logo_exists": LOGO_FILE.exists(),
+        "logo_dark_exists": LOGO_DARK_FILE.exists(),
     }
 
 

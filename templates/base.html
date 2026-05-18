@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/style.css?v=5">
+  <link rel="stylesheet" href="/assets/style.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   {% block extra_head %}{% endblock %}
 </head>
@@ -17,8 +17,11 @@
   <header id="topnav">
     <div id="topnav-left">
       <a id="topnav-brand" href="/">
+        {% if logo_dark_exists %}
+          <img class="logo-dark" src="/assets/logo_dark.svg" style="height: 50px;" alt="">
+        {% endif %}
         {% if logo_exists %}
-          <img src="/assets/logo.svg" style="height: 50px;" alt="">
+          <img class="logo-light" src="/assets/logo.svg" style="height: 50px;" alt="">
         {% endif %}
         <span id="topnav-title">Estate Insights</span>
       </a>

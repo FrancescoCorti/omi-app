@@ -98,11 +98,11 @@
   position: relative;
 }
 
-.home-hero__eyebrow {
+.home-hero__eyebrow { /* "Estate Insights" label above the title */
   display: inline-flex;
   align-items: center;
   gap: 14px;
-  font-size: 0.64rem;
+  font-size: 1.2rem;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -139,8 +139,8 @@
   -webkit-text-fill-color: var(--accent);
 }
 
-.home-hero__sub {
-  font-size: 1.05rem;
+.home-hero__sub { /* Subtitle below the title */
+  font-size: 1.25rem;
   font-weight: 300;
   color: var(--text-muted);
   max-width: 530px;
@@ -177,7 +177,7 @@
   opacity: 0.4;
 }
 .scroll-cue__icon {
-  width: 20px; height: 20px;
+  width: 30px; height: 20px;
   stroke: var(--text-muted);
   fill: none;
   stroke-width: 1.8;
@@ -201,12 +201,11 @@
   font-weight: 600;
   text-decoration: none;
   letter-spacing: 0.01em;
-  transition: transform 0.18s, opacity 0.18s, box-shadow 0.18s;
+  transition: transform 0.18s, opacity 0.18s;
 }
 .h-btn-primary:hover {
   transform: translateY(-2px);
   opacity: 0.92;
-  box-shadow: 0 6px 20px rgba(74, 143, 212, 0.35);
 }
 
 .h-btn-ghost {
@@ -214,7 +213,7 @@
   align-items: center;
   gap: 9px;
   padding: 14px 34px;
-  background: transparent;
+  background: var(--nav-bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -327,7 +326,7 @@
 
 /* Map widget: background follows page background, borders always dark */
 .feature-row__widget--map { background: var(--bg); }
-.feature-row__widget--map .leaflet-container { background: var(--bg) !important; }
+.feature-row__widget--map .leaflet-container { background: var(--surface) !important; }
 .feature-row__widget--map .mini-map-hint { background: var(--bg); }
 
 /* Mini controls bar */
@@ -513,7 +512,7 @@
       <div class="feature-row scroll-reveal sr-d2">
         <div class="feature-row__text">
           <span class="feature-row__num">01 — Price Trend Chart</span>
-          <h2 class="feature-row__title">Track prices<br>over two decades</h2>
+          <h2 class="feature-row__title">Track prices over two decades</h2>
           <p class="feature-row__desc">
             Visualise min, mean, and max prices per m² from 2004 to today.
             Drill down through four geographic levels — region, province,
@@ -540,9 +539,9 @@
       <div class="feature-row feature-row--reverse scroll-reveal sr-d2">
         <div class="feature-row__text">
           <span class="feature-row__num">02 — Interactive Map</span>
-          <h2 class="feature-row__title">See prices<br>across the territory</h2>
+          <h2 class="feature-row__title">See prices across the territory</h2>
           <p class="feature-row__desc">
-            Explore the geographic distribution of real estate values across Italy.
+            Explore the geographic distribution of real estate values across Italy for the latest available semester.
             Switch between regions, provinces, municipalities, and OMI zones on an
             interactive colour-coded map.
           </p>

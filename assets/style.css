@@ -3,16 +3,17 @@
 /* ── Design tokens ──────────────────────────────────────────────────────────── */
 :root {
   --topnav-height: 72px; /* Height of top navigation bar */
-  --bg:            #030e38;
-  --surface:       #0c1a32;
-  --nav-bg:        #060f2a;
-  --text:          #d4dbf0;
-  --text-muted:    #8797b8;
-  --accent:        #4a8fd4;
-  --accent-glow:   rgba(74, 143, 212, 0.2);
-  --border:        rgba(255, 255, 255, 0.08);
-  --input-bg:      #0c1a32;
-  --shadow:        0 4px 20px rgba(0, 0, 0, 0.45);
+  --bg:            #030e38; /* Main background color */
+  --surface:       #0c1a32; /* Surface color for cards, modals, tooltips */
+  --nav-bg:        #060f2a; /* Background color for top navigation bar */
+  --text:          #d4dbf0; /* Primary text color */
+  --text-muted:    #8797b8; /* Secondary text color for less emphasis */
+  --nav-button:    rgba(74, 143, 212, 0.2); /* Background color for nav buttons */
+  --accent:        #4a8fd4; /* Accent color for highlights and interactive elements */
+  --accent-glow:   rgba(74, 143, 212, 0.2); /* Subtle glow for hover and active states */
+  --border:        rgba(255, 255, 255, 0.08); /* Border color for inputs and dividers */
+  --input-bg:      #0c1a32; /* Background color for input fields */
+  --shadow:        0 4px 20px rgba(0, 0, 0, 0.45); /* Shadow for elevated elements */
 }
 
 [data-theme="light"] {
@@ -21,12 +22,20 @@
   --nav-bg:        #ffffff;
   --text:          #1a2035;
   --text-muted:    #5a6478;
-  --accent:        #2a6bba;
-  --accent-glow:   rgba(42, 107, 186, 0.15);
-  --border:        rgba(26, 32, 53, 0.1);
+  --nav-button:    #f0ece4;
+  --accent:        #C04F15;
+  --accent-glow:   #f8e9cb;
+  --border:        #f8e9cb;
   --input-bg:      #ffffff;
   --shadow:        0 4px 20px rgba(0, 0, 0, 0.08);
 }
+
+/* ── Logo dark/light switching ──────────────────────────────────────────────── */
+#topnav-brand .logo-dark  { display: block; }
+#topnav-brand .logo-light { display: none;  }
+
+[data-theme="light"] #topnav-brand .logo-dark  { display: none;  }
+[data-theme="light"] #topnav-brand .logo-light { display: block; }
 
 /* ── Theme transition (only active during switch, prevents FOUC) ─────────────── */
 html.theme-transitioning *,
@@ -122,12 +131,12 @@ body {
 }
 
 #topnav .nav-link:hover {
-  background: var(--accent-glow);
+  background: var(--nav-button);
   color: var(--text);
 }
 
 #topnav .nav-link.active {
-  background: var(--accent-glow);
+  background: var(--nav-button);
   color: var(--accent);
   font-weight: 600;
 }
@@ -318,8 +327,6 @@ body {
   height: 36px;
   padding: 0 16px;
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
   color: var(--text-muted);
   font-family: 'Outfit', sans-serif;
   font-size: 0.82rem;
@@ -334,8 +341,7 @@ body {
 }
 
 .map-reset-btn--confirm {
-  border-color: #e0683c;
-  color: #e0683c;
+  color: #C04F15;
   background: rgba(224, 104, 60, 0.08);
 }
 
@@ -540,7 +546,6 @@ body {
   font-size: 0.83rem;
   border-radius: 6px;
   padding: 7px 11px;
-  box-shadow: var(--shadow);
 }
 
 .leaflet-tooltip.map-tooltip::before { border-top-color: var(--surface); }
