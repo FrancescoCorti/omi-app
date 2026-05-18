@@ -65,7 +65,12 @@
     </div>
   </div>
 
-  <div id="map"></div>
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="map-loading" aria-hidden="true">
+      <div class="map-spinner"></div>
+    </div>
+  </div>
 
   <div id="map-legend"></div>
 
@@ -168,8 +173,11 @@
         const p  = feature.properties;
         const mn = (parseFloat(p['Min. price']) || 0).toLocaleString('it-IT');
         const mx = (parseFloat(p['Max. price']) || 0).toLocaleString('it-IT');
+        const title = (p['Zone'] && p['Mun. name'])
+          ? `${escapeHtml(p['Mun. name'])} – ${escapeHtml(p['Zone'])}`
+          : escapeHtml(areaName(p));
         layer.bindTooltip(
-          `<strong>${escapeHtml(areaName(p))}</strong><br>Min: €${mn} / m²<br>Max: €${mx} / m²`,
+          `<strong>${title}</strong><br>Min: €${mn} / m²<br>Max: €${mx} / m²`,
           { sticky: true, className: 'map-tooltip' }
         );
         layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.55, weight: 2, color: '#fff' }));
@@ -415,6 +423,9 @@
     };
   }
 
+  const loadingEl = document.getElementById('map-loading');
+  function setLoading(on) { loadingEl.classList.toggle('map-loading--active', on); }
+
   async function refresh() {
     const req = geoRequest();
     if (!req) { clearMap(); lastGeoKey = null; lastFetched = []; populateMunOptions([]); return; }
@@ -422,19 +433,21 @@
     if (req.key === lastGeoKey) { applyMunFilterAndRender(); return; }
 
     const mySeq = ++seq;
+    setLoading(true);
     const qs = new URLSearchParams(req.params).toString();
     let geojson;
     try {
       const resp = await fetch(`/api/geo?${qs}`);
-      if (mySeq !== seq) return;
+      if (mySeq !== seq) { setLoading(false); return; }
       geojson = await resp.json();
-    } catch (_) { return; }
-    if (mySeq !== seq) return;
+    } catch (_) { setLoading(false); return; }
+    if (mySeq !== seq) { setLoading(false); return; }
 
     lastGeoKey  = req.key;
     lastFetched = geojson.features || [];
     populateMunOptions(lastFetched);
     applyMunFilterAndRender();
+    setLoading(false);
   }
 
   // ── Option population ──────────────────────────────────────────────────────

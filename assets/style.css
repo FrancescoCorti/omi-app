@@ -527,13 +527,45 @@ body {
 .info-page h2 { color: var(--text); margin-top: 0; }
 
 /* ── Map page ────────────────────────────────────────────────────────────────── */
+#map-wrap {
+  position: relative;
+  margin-top: 12px;
+}
+
 #map {
   width: 100%;
   height: 600px;
   border-radius: 8px;
-  margin-top: 12px;
   border: 1px solid var(--border);
   overflow: hidden;
+}
+
+#map-loading {
+  display: none;
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(3, 14, 56, 0.55);
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+#map-loading.map-loading--active { display: flex; }
+
+[data-theme="light"] #map-loading { background: rgba(240, 236, 228, 0.55); }
+
+.map-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(74, 143, 212, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: map-spin 0.75s linear infinite;
+}
+
+@keyframes map-spin {
+  to { transform: rotate(360deg); }
 }
 
 .leaflet-container { background: var(--bg); }
