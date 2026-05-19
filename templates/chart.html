@@ -67,6 +67,20 @@
   </form>
 
   <div id="chart"></div>
+
+  <div class="yoy-panel">
+    <div class="yoy-header">
+      <span class="yoy-title">% Change <span style="font-size:0.73rem;opacity:0.6;">(Mean Price - From 2015)</span></span>
+      <div style="display:flex;flex-direction:row;align-items:center;gap:10px;">
+        <span style="font-size:0.73rem;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-muted);">Change period</span>
+        <div class="period-toggle" id="yoy-mode-toggle">
+          <button class="period-btn period-btn--active" data-mode="semester">Semester</button>
+          <button class="period-btn" data-mode="12m">12-Month</button>
+        </div>
+      </div>
+    </div>
+    <div id="yoy-chart"></div>
+  </div>
 </div>
 {% endblock %}
 
@@ -91,6 +105,41 @@
 
   const chartEl = document.getElementById("chart");
   const chart = echarts.init(chartEl, null, { renderer: "canvas" });
+
+  const yoyChart = echarts.init(document.getElementById("yoy-chart"), null, { renderer: "canvas" });
+
+  let yoyMode = "semester";
+  function redrawYoy() {
+    if (!lastChartData) return;
+    const s = semesterChange(lastChartData, "mean", yoyMode);
+    yoyChart.setOption(buildYoyOption(s.x, s.values, "mean", yoyMode), true);
+  }
+
+  // Hover sync. Both charts share the same x-axis (the semester chart blanks
+  // pre-2014 semesters rather than clipping them), so we match by the
+  // "YYYY - Sx" label and mirror showTip/hideTip onto the other chart.
+  function mainX() {
+    if (!lastChartData || lastChartData.empty) return [];
+    const d = sliceData(lastChartData);
+    return (d && d.x) || [];
+  }
+  function attachHoverSync(src, srcX, tgt, tgtX) {
+    const zr = src.getZr();
+    zr.on("mousemove", (ev) => {
+      if (!src.containPixel("grid", [ev.offsetX, ev.offsetY])) {
+        tgt.dispatchAction({ type: "hideTip" });
+        return;
+      }
+      const i = Math.round(src.convertFromPixel({ xAxisIndex: 0 }, ev.offsetX));
+      const cat = srcX()[i];
+      const j = cat == null ? -1 : tgtX().indexOf(cat);
+      if (j >= 0) tgt.dispatchAction({ type: "showTip", seriesIndex: 0, dataIndex: j });
+      else tgt.dispatchAction({ type: "hideTip" });
+    });
+    zr.on("globalout", () => tgt.dispatchAction({ type: "hideTip" }));
+  }
+  attachHoverSync(chart, mainX, yoyChart, mainX);
+  attachHoverSync(yoyChart, mainX, chart, mainX);
 
   const DOWNSTREAM = {
     region:       ["province", "municipality", "zone"],
@@ -174,14 +223,14 @@
         textStyle: { color: tc.text, fontFamily: font, fontWeight: 600 },
         subtextStyle: { color: tc.text, fontFamily: font, opacity: 0.6 },
       },
-      grid: { left: 64, right: 24, top: 96, bottom: 80 },
+      grid: { left: 64, right: 24, top: 96, bottom: 50 },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "line", lineStyle: { color: "#888", type: "dashed", width: 1 } },
         backgroundColor: tc.ttBg,
         borderColor: tc.ttBd,
         textStyle: { color: tc.text, fontFamily: font },
-        valueFormatter: (v) => (v == null ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })),
+        valueFormatter: (v) => (v == null ? "—" : "€" + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }) + "/m²"),
       },
       legend: {
         data: ["Max. price", "Mean price", "Min. price"],
@@ -192,7 +241,6 @@
       xAxis: {
         type: "category",
         data: data.x,
-        name: "Year",
         nameLocation: "middle",
         nameGap: 50,
         nameTextStyle: { color: tc.text, fontFamily: font },
@@ -218,6 +266,103 @@
     };
   }
 
+  // % change vs. the immediately preceding semester (1 index back).
+  function computeYoy(values) {
+    const out = [];
+    for (let i = 0; i < values.length; i++) {
+      const prev = values[i - 1];
+      if (i < 1 || prev == null || values[i] == null || prev === 0) {
+        out.push(null);
+      } else {
+        out.push(Math.round(((values[i] - prev) / prev) * 1000) / 10);
+      }
+    }
+    return out;
+  }
+
+  // % change vs. the same semester one year earlier (2 indices back).
+  function compute12m(values) {
+    const out = [];
+    for (let i = 0; i < values.length; i++) {
+      const prev = values[i - 2];
+      if (i < 2 || prev == null || values[i] == null || prev === 0) {
+        out.push(null);
+      } else {
+        out.push(Math.round(((values[i] - prev) / prev) * 1000) / 10);
+      }
+    }
+    return out;
+  }
+
+  const YOY_POS = "#5bb8a0";
+  const YOY_NEG = "#e05050";
+  const YOY_LABEL = { min: "Min. price", mean: "Mean price", max: "Max. price" };
+
+  function buildYoyOption(xData, values, activeSeries, mode) {
+    const tc = getThemeColors();
+    const font = "Outfit, sans-serif";
+    if (!xData || xData.length < 2) {
+      const modeLabel = mode === "12m" ? "12-month" : "semester";
+      return {
+        backgroundColor: tc.paper,
+        title: {
+          text: `Not enough data for ${modeLabel} change`,
+          left: "center",
+          top: "middle",
+          textStyle: { color: tc.text, fontFamily: font, fontSize: 14, fontWeight: 400 },
+        },
+      };
+    }
+    const label = YOY_LABEL[activeSeries] || "Mean price";
+    return {
+      backgroundColor: tc.paper,
+      textStyle: { color: tc.text, fontFamily: font },
+      grid: { left: 64, right: 24, top: 48, bottom: 44 },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "line", lineStyle: { color: "#888", type: "dashed", width: 1 } },
+        backgroundColor: tc.ttBg,
+        borderColor: tc.ttBd,
+        textStyle: { color: tc.text, fontFamily: font },
+        valueFormatter: (v) => (v == null ? "—" : (v >= 0 ? "+" : "") + Number(v).toFixed(1) + " %"),
+      },
+      xAxis: {
+        type: "category",
+        data: xData,
+        axisLabel: {
+          color: tc.text, fontFamily: font, rotate: 0,
+          formatter: (val) => val.endsWith("S1") ? val.split(" - ")[0] : "",
+        },
+        axisLine: { lineStyle: { color: tc.axis } },
+      },
+      yAxis: {
+        type: "value",
+        name: "%",
+        nameTextStyle: { color: tc.text, fontFamily: font },
+        axisLabel: { color: tc.text, fontFamily: font },
+        axisLine: { lineStyle: { color: tc.axis } },
+        splitLine: { lineStyle: { color: tc.grid } },
+      },
+      series: [
+        {
+          name: label + " change",
+          type: "bar",
+          data: values,
+          itemStyle: {
+            color: (p) => (p.value == null ? "transparent" : (p.value >= 0 ? YOY_POS : YOY_NEG)),
+          },
+          markLine: {
+            symbol: "none",
+            silent: true,
+            lineStyle: { color: tc.axis, type: "dashed", width: 1 },
+            label: { show: false },
+            data: [{ yAxis: 0 }],
+          },
+        },
+      ],
+    };
+  }
+
   const YEAR_MARKS = [
     { x: "2014 - S1", label: "OMI methodological change (2014)", side: "right" },
     { x: "2024 - S1", label: "OMI methodological change (2024)", side: "left" },
@@ -237,7 +382,7 @@
 
       const wrap = document.createElement("div");
       wrap.className = "omi-marker";
-      wrap.style.cssText = `position:absolute;left:${px - 5}px;top:${gridTop}px;width:11px;height:${gridBottom - gridTop}px;z-index:100;cursor:default;`;
+      wrap.style.cssText = `position:absolute;left:${px - 5}px;top:${gridTop}px;width:11px;height:${gridBottom - gridTop}px;z-index:5;cursor:default;`;
 
       const line = document.createElement("div");
       line.style.cssText = `position:absolute;left:5px;top:0;width:0;height:100%;border-left:1.5px dashed rgba(255,190,60,0.72);pointer-events:none;`;
@@ -273,6 +418,25 @@
     };
   }
 
+  // Semester-change series aligned 1:1 with the main chart's x-axis (same
+  // period window) so the two charts line up semester-for-semester. The %
+  // change is computed on the full series — so even the leftmost displayed
+  // bar is valid — then every semester before 2014 - S2 is blanked, leaving
+  // 2014 - S2 (and earlier) empty and data from 2015 - S1 onward.
+  function semesterChange(full, activeSeries, mode) {
+    if (!full || full.empty || !full.x) return { x: [], values: [] };
+    const x = sliceData(full).x || [];
+    const start = full.x.length - x.length;
+    const computeFn = mode === "12m" ? compute12m : computeYoy;
+    const change = computeFn(full[activeSeries] || []).slice(start);
+    let cut = full.x.indexOf("2015 - S1");
+    if (cut < 0) cut = 0;
+    for (let k = 0; k < change.length; k++) {
+      if (start + k < cut) change[k] = null;
+    }
+    return { x, values: change };
+  }
+
   chart.on("finished", () => {
     if (lastChartData && !lastChartData.empty) drawYearMarkers(sliceData(lastChartData).x);
   });
@@ -280,6 +444,7 @@
   // Re-render chart colours when theme toggles (no API re-fetch needed).
   new MutationObserver(function () {
     if (lastChartData) chart.setOption(buildOption(sliceData(lastChartData)), true);
+    redrawYoy();
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   async function updateState() {
@@ -308,6 +473,7 @@
 
     lastChartData = data.chart;
     chart.setOption(buildOption(sliceData(data.chart)), true);
+    redrawYoy();
   }
 
   document.getElementById("chart-page").addEventListener("change", (e) => {
@@ -321,13 +487,25 @@
   document.getElementById("filter-form").addEventListener("click", (e) => {
     const btn = e.target.closest(".period-btn");
     if (!btn) return;
-    document.querySelectorAll(".period-btn").forEach(b => b.classList.remove("period-btn--active"));
+    btn.closest(".period-toggle").querySelectorAll(".period-btn")
+      .forEach(b => b.classList.remove("period-btn--active"));
     btn.classList.add("period-btn--active");
     currentPeriod = btn.dataset.period;
     if (lastChartData) chart.setOption(buildOption(sliceData(lastChartData)), true);
+    redrawYoy();
   });
 
-  window.addEventListener("resize", () => chart.resize());
+  document.getElementById("yoy-mode-toggle").addEventListener("click", (e) => {
+    const btn = e.target.closest(".period-btn");
+    if (!btn) return;
+    e.currentTarget.querySelectorAll(".period-btn")
+      .forEach(b => b.classList.remove("period-btn--active"));
+    btn.classList.add("period-btn--active");
+    yoyMode = btn.dataset.mode;
+    redrawYoy();
+  });
+
+  window.addEventListener("resize", () => { chart.resize(); yoyChart.resize(); });
 
   updateState();
 })();
