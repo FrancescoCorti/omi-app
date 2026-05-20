@@ -31,7 +31,7 @@
       </div>
 
       <div class="filter-cell">
-        <label for="f-zone">Zone <span style="font-size:0.75rem;opacity:0.6;">(only after 2014)</span></label>
+        <label for="f-zone">Zone <span style="font-size:0.75rem;opacity:0.6;">(from 2014)</span></label>
         <select id="f-zone" name="zone" disabled>
           <option value="" selected>Average (all zones)</option>
         </select>
@@ -63,6 +63,18 @@
           <button class="period-btn period-btn--active" data-period="max">MAX</button>
         </div>
       </div>
+
+      <div class="filter-cell filter-cell--period">
+        <label>Transactions <span style="font-size:0.75rem;opacity:0.6;">(aggregated residential - from 2014)</span></label>
+        <div class="period-toggle" id="ntn-size-toggle">
+          <button type="button" class="period-btn" data-size="total">Total</button>
+          <button type="button" class="period-btn" data-size="le50">&le;50m&sup2;</button>
+          <button type="button" class="period-btn" data-size="r50_85">50&ndash;85</button>
+          <button type="button" class="period-btn" data-size="r85_115">85&ndash;115</button>
+          <button type="button" class="period-btn" data-size="r115_145">115&ndash;145</button>
+          <button type="button" class="period-btn" data-size="gt145">&gt;145m&sup2;</button>
+        </div>
+      </div>
     </div>
   </form>
 
@@ -70,7 +82,7 @@
 
   <div class="yoy-panel">
     <div class="yoy-header">
-      <span class="yoy-title">% Change <span style="font-size:0.73rem;opacity:0.6;">(Mean Price - From 2015)</span></span>
+      <span class="yoy-title">% Change <span style="font-size:0.73rem;font-weight: 600;letter-spacing: 0.07em;color:#5a6478;opacity:0.6;">(MEAN PRICE - FROM 2015)</span></span>
       <div style="display:flex;flex-direction:row;align-items:center;gap:10px;">
         <span style="font-size:0.73rem;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-muted);">Change period</span>
         <div class="period-toggle" id="yoy-mode-toggle">
@@ -90,6 +102,20 @@
   const COLOR_MIN  = "steelblue";
   const COLOR_MEAN = "gray";
   const COLOR_MAX  = "tomato";
+
+  const NTN_COLOR = "#7da7d9";
+  const RESIDENTIAL_TYPES = new Set([
+    "Residential housing", "Lowcost housing",
+    "Independent houses and villas", "Luxury housing",
+  ]);
+  const SIZE_LABEL = {
+    total:    "Transactions (total)",
+    le50:     "Transactions (≤50m²)",
+    r50_85:   "Transactions (50–85m²)",
+    r85_115:  "Transactions (85–115m²)",
+    r115_145: "Transactions (115–145m²)",
+    gt145:    "Transactions (>145m²)",
+  };
 
   function getThemeColors() {
     const light = document.documentElement.getAttribute('data-theme') === 'light';
@@ -199,7 +225,7 @@
     el.disabled = values.length === 0;
   }
 
-  function buildOption(data) {
+  function buildOption(data, ntn, sizeKey) {
     const tc = getThemeColors();
     const font = "Outfit, sans-serif";
     if (data.empty) {
@@ -213,7 +239,7 @@
         },
       };
     }
-    return {
+    const opt = {
       backgroundColor: tc.paper,
       textStyle: { color: tc.text, fontFamily: font },
       title: {
@@ -264,6 +290,102 @@
         { name: "Min. price", type: "line", showSymbol: false, lineStyle: { color: COLOR_MIN,  width: 2 }, itemStyle: { color: COLOR_MIN  }, data: data.min },
       ],
     };
+
+    if (ntn && !ntn.empty) {
+      const key = sizeKey || "total";
+      const label = SIZE_LABEL[key] || "Transactions";
+      const vals = (ntn.series && ntn.series[key]) || [];
+      const byYear = {};
+      (ntn.years || []).forEach((y, i) => { byYear[y] = vals[i]; });
+
+      // Two items per year: one at the "S1" tick and one at "S2", both
+      // carrying the same count so the axis tooltip shows transactions on
+      // either semester. value = [categoryIndex, count, drawFlag]; only the
+      // S1 item has drawFlag=1 and renders the (single) centred rect.
+      const lastIdx = data.x.length - 1;
+      const items = [];
+      data.x.forEach((lbl, idx) => {
+        const isS1 = lbl.endsWith("S1");
+        if (!isS1 && !lbl.endsWith("S2")) return;
+        const v = byYear[lbl.split(" - ")[0]];
+        if (v == null) return;
+        items.push({ value: [idx, v, isS1 ? 1 : 0] });
+      });
+
+      opt.yAxis = [
+        opt.yAxis,
+        {
+          type: "value",
+          position: "right",
+          name: "Transactions",
+          nameTextStyle: { color: tc.text, fontFamily: font },
+          axisLabel: {
+            color: tc.text, fontFamily: font,
+            formatter: (v) => Number(v).toLocaleString(),
+          },
+          axisLine: { lineStyle: { color: tc.axis } },
+          splitLine: { show: false },
+        },
+      ];
+      opt.grid = { ...opt.grid, right: 72 };
+      opt.legend = { ...opt.legend, data: [...opt.legend.data, label] };
+      opt.series = [
+        {
+          name: label,
+          type: "custom",
+          xAxisIndex: 0,
+          yAxisIndex: 1,
+          z: 1,
+          clip: true,
+          itemStyle: { color: NTN_COLOR, opacity: 0.32 },
+          encode: { x: 0, y: 1, tooltip: [1] },
+          renderItem: (params, api) => {
+            if (api.value(2) !== 1) return;                 // S2 placeholder → tooltip only
+            const i1 = api.value(0);
+            const cnt = api.value(1);
+            const pS1 = api.coord([i1, 0]);                 // S1 tick, baseline
+            const adj = i1 + 1 <= lastIdx ? i1 + 1 : i1 - 1; // neighbouring tick
+            const band = Math.abs(api.coord([adj, 0])[0] - pS1[0]) || 24;
+            const cx = pS1[0] + band / 2;                    // midpoint S1↔S2
+            const w = band * 1.6;                            // gap kept between years
+            const yTop = api.coord([i1, cnt])[1];
+            const rect = {
+              x: cx - w / 2, y: yTop,
+              width: w, height: pS1[1] - yTop,
+            };
+            return {
+              type: "rect",
+              shape: echarts.graphic.clipRectByRect(rect, {
+                x: params.coordSys.x, y: params.coordSys.y,
+                width: params.coordSys.width, height: params.coordSys.height,
+              }),
+              style: api.style(),
+            };
+          },
+          data: items,
+        },
+        ...opt.series,
+      ];
+      // Per-series formatting: price series stay €/m². The NTN custom series
+      // value is [idx, count, drawFlag], so its count is element 1.
+      delete opt.tooltip.valueFormatter;
+      opt.tooltip.formatter = (params) => {
+        const head = params.length ? params[0].axisValue : "";
+        let html = `<div style="font-weight:600;margin-bottom:4px">${head}</div>`;
+        for (const p of params) {
+          let val = p.value;
+          if (Array.isArray(val)) val = val[1];
+          if (val == null) continue;
+          const v = /price$/.test(p.seriesName)
+            ? "€" + Number(val).toLocaleString(undefined, { maximumFractionDigits: 0 }) + "/m²"
+            : Number(val).toLocaleString();
+          html += `${p.marker}${p.seriesName}: <b>${v}</b><br/>`;
+        }
+        return html;
+      };
+    }
+
+    return opt;
   }
 
   // % change vs. the immediately preceding semester (1 index back).
@@ -317,7 +439,7 @@
     return {
       backgroundColor: tc.paper,
       textStyle: { color: tc.text, fontFamily: font },
-      grid: { left: 64, right: 24, top: 48, bottom: 44 },
+      grid: { left: 64, right: ntnForRender() ? 72 : 24, top: 48, bottom: 44 },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "line", lineStyle: { color: "#888", type: "dashed", width: 1 } },
@@ -374,7 +496,7 @@
     chartEl.style.position = "relative";
     const tc = getThemeColors();
     const h = chartEl.clientHeight;
-    const gridTop = 96, gridBottom = h - 80;
+    const gridTop = 96, gridBottom = h-50;
     for (const { x, label, side } of YEAR_MARKS) {
       const idx = xData.indexOf(x);
       if (idx < 0) continue;
@@ -404,6 +526,66 @@
   let seq = 0;
   let lastChartData = null;
   let currentPeriod = "max";
+
+  // NTN transaction overlay state.
+  let ntnActive = false;
+  let lastNtnData = null;
+  let currentSizeKey = "total";
+  let ntnSeq = 0;
+
+  function ntnForRender() {
+    return (ntnActive && lastNtnData && !lastNtnData.empty) ? lastNtnData : null;
+  }
+
+  function renderMain() {
+    if (!lastChartData) return;
+    chart.setOption(
+      buildOption(sliceData(lastChartData), ntnForRender(), currentSizeKey), true);
+    redrawYoy();
+  }
+
+  // Disable size buttons for non-residential types or when a zone is selected.
+  // If conditions break while the overlay is on, turn it off silently.
+  function syncNtnState() {
+    const f = readFilters();
+    const allowed = !f.zone && RESIDENTIAL_TYPES.has(f.type);
+    const btns = document.querySelectorAll("#ntn-size-toggle .period-btn");
+    btns.forEach(b => {
+      b.disabled = !allowed;
+      b.classList.toggle("period-btn--disabled", !allowed);
+    });
+    if (!allowed && ntnActive) {
+      ntnActive = false;
+      btns.forEach(b => b.classList.remove("period-btn--active"));
+      renderMain();
+    }
+  }
+
+  async function updateNtn() {
+    const my = ++ntnSeq;
+    const f = readFilters();
+    const qs = new URLSearchParams({
+      region:       f.region,
+      province:     f.province,
+      municipality: f.municipality,
+    }).toString();
+    let res;
+    try {
+      res = await fetch(`/api/ntn?${qs}`);
+    } catch (err) {
+      console.error("ntn fetch failed", err);
+      return;
+    }
+    if (my !== ntnSeq) return;
+    if (!res.ok) {
+      console.error("ntn fetch failed", res.status);
+      return;
+    }
+    const d = await res.json();
+    if (my !== ntnSeq) return;
+    lastNtnData = d;
+    renderMain();
+  }
 
   function sliceData(chartData) {
     if (currentPeriod === "max" || !chartData || chartData.empty) return chartData;
@@ -443,8 +625,7 @@
 
   // Re-render chart colours when theme toggles (no API re-fetch needed).
   new MutationObserver(function () {
-    if (lastChartData) chart.setOption(buildOption(sliceData(lastChartData)), true);
-    redrawYoy();
+    renderMain();
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   async function updateState() {
@@ -472,8 +653,9 @@
     paintSelect("condition",    data.options.conditions,     filters.condition);
 
     lastChartData = data.chart;
-    chart.setOption(buildOption(sliceData(data.chart)), true);
-    redrawYoy();
+    renderMain();
+    syncNtnState();
+    if (ntnActive) updateNtn();
   }
 
   document.getElementById("chart-page").addEventListener("change", (e) => {
@@ -486,13 +668,34 @@
 
   document.getElementById("filter-form").addEventListener("click", (e) => {
     const btn = e.target.closest(".period-btn");
-    if (!btn) return;
+    if (!btn || !btn.dataset.period) return;
     btn.closest(".period-toggle").querySelectorAll(".period-btn")
       .forEach(b => b.classList.remove("period-btn--active"));
     btn.classList.add("period-btn--active");
     currentPeriod = btn.dataset.period;
-    if (lastChartData) chart.setOption(buildOption(sliceData(lastChartData)), true);
-    redrawYoy();
+    renderMain();
+  });
+
+  document.getElementById("ntn-size-toggle").addEventListener("click", (e) => {
+    const btn = e.target.closest(".period-btn");
+    if (!btn || btn.disabled) return;
+    const size = btn.dataset.size;
+    const wasActive = ntnActive && currentSizeKey === size;
+    e.currentTarget.querySelectorAll(".period-btn")
+      .forEach(b => b.classList.remove("period-btn--active"));
+    if (wasActive) {
+      // same button clicked again → hide overlay
+      ntnActive = false;
+      renderMain();
+    } else {
+      // new button → show overlay with selected size
+      btn.classList.add("period-btn--active");
+      currentSizeKey = size;
+      const wasAlreadyActive = ntnActive;
+      ntnActive = true;
+      if (!wasAlreadyActive) updateNtn(); // fresh fetch on first activation
+      else renderMain();                  // size-only switch, data is still fresh
+    }
   });
 
   document.getElementById("yoy-mode-toggle").addEventListener("click", (e) => {

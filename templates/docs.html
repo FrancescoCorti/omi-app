@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Estate Insights — Documentation{% endblock %}
+
+{% block content %}
+<div class="doc-page">
+
+  <header class="doc-page__header">
+    <p class="doc-page__eyebrow">Documentation</p>
+    <h1 class="doc-page__title">User Guide</h1>
+    <p class="doc-page__sub">
+      Everything you need to navigate the data, interpret the charts, and make the most of the interactive map.
+    </p>
+  </header>
+
+  <div class="doc-section active" id="chart-guide">
+    <span class="doc-section__num">01 — Chart Guide</span>
+    <p>This page will guide you through the functionalities of the Chart page. </p>
+    <h2>Buy Price Trends chart</h2>
+    <h3>Select a location</h3>
+    <p>Use the <b>dropdown menu</b> on top of the chart to select a location and view its price trends.
+      Open the dropdown menu and write the name a location to find it faster.
+    </p>
+    <p>The selection menu follows a cascade logic to <b>filter locations</b>.</p>
+    <p style="text-align:center"><i>Region &rarr; Province &rarr; Municipality &rarr; Zone</i></p>
+    <p>Notice that the chart will display the <b>average values</b> whenever no further areas
+      are selected.</p>
+    <figure>
+      <img src="assets/docs_image/menu_light.png" alt="Dropdown menu" style="width:1000px">
+    </figure>
+
+    <h3>Select property type and condition</h3>
+    <p>The selection of specific property types and conditions is <b>available at every moment</b>,
+      regardless of the selected location.
+      "Residential housing" is displayed as the default type, while conditions
+      are averaged unless specifically selected.
+    </p>
+    <figure>
+      <img src="assets/docs_image/menu_type_light.png" alt="Dropdown menu type" style="width:1000px">
+    </figure>
+
+    <h3>Select a specific time range</h3>
+    <p>To plot a specific <b>time range</b>, use the TIME RANGE button. By default, the <b>maximum</b> time
+      range is displayed, while <b>5</b> and <b>10 years</b> are available as alternative options.</p>
+    <figure>
+      <img src="assets/docs_image/time_range_light.png" alt="Time range" style="width:220px">
+    </figure>
+    <p>Notice that the time range selection is limited by <b>data availability</b>. For instance,
+      with a zone selected, the maximum time range extends to 2014.</p>
+
+    <h3>Visualize the number of transactions</h3>
+    <p>To integrate the chart with information relative to <b>transaction volumes</b>, use the TRANSACTIONS button.
+      Click on one of the available options to visualize the yearly number of transactions for the selected location.
+      Click again on the button to clear the previous selection or click on another option to switch.
+    </p>
+    <figure>
+      <img src="assets/docs_image/transactions_light.png" alt="Transactions" width="550px">
+    </figure>
+    <p>Notice that the selection is available only when one of the <b>residential properties</b> (Residential housing,
+      Lowcost housing, Independent houses and villas, Luxury housing) is selected as property type.
+      Transaction records are available only from 2014.
+    </p>
+
+    <h2>% Change chart</h2>
+    <p>Scroll down in the chart page and discover the <b>% Change</b> graph where you can see periodic changes of real estate
+      prices.
+    </p>
+    <p>Use the CHANGE PERIOD button to switch between <b>semestral</b> or <b>12-month</b> percentage price change.</p>
+    <figure>
+      <img src="assets/docs_image/change_period_light.png" alt="Change period" width="400px">
+    </figure>
+    <p>The interactive banners in the Buy Price Trend chart and in the % Change graph are <b>synchronized</b>. Hover with the cursor
+      to simultaneously display data on both graphs.
+    </p>
+  </div>
+
+  <div class="doc-section" id="map-guide">
+    <span class="doc-section__num">02 — Map Guide</span>
+    <p>This page will guide you through the functionalities of the Map page.</p>
+    <h2>National selection</h2>
+    <p>Select the <b>National</b> option in the SCOPE button to display buy prices for regions or provinces,
+      relative to the latest available semester.
+    </p>
+    <figure>
+      <img src="assets/docs_image/map_national_light.png" alt="National scope" width="500px">
+    </figure>
+
+    <h2>Custom selection</h2>
+    <p>Select the <b>Custom</b> option in the SCOPE button to customize the research to a specific region or provinces.</p>
+    
+    <h3>Region level</h3>
+    <p>
+      With the <b>Region</b> option selected in the LEVEL button, a region must be chosen from the dropdown menu.
+      With a Region selected, proceed by choosing specific provinces or municipalities in the relative dropdwon 
+      menus (optional).
+    </p>
+    <figure>
+      <img src="assets/docs_image/map_region_light.png" alt="Custom region selection" width="1000px">
+    </figure>
+    <p>Prefer this option when the focus is on a <b>specific region</b> rather than on interregional areas.</p>
+
+    <h3>Province level</h3>
+    <p>With the <b>Province</b> option selected in the LEVEL button, a maximum of <b>5 provinces</b> can be selected from 
+      the dropdown menu. With provinces selected, proceed by choosing specific municipalities in the dropdown menu.
+    </p>
+    <figure>
+      <img src="assets/docs_image/map_province_light.png" alt="Custom province selection" width="1000px">
+    </figure>
+    <p>Prefer this option when the focus is on selected areas <b>across multiple regions</b>.</p>
+
+    <h3>Perimeters selection</h3>
+    <p>Use the PERIMETERS button to choose how to <b>render perimeters</b> (municipality or zone) on the map. 
+      The button is always active upon satisfaction of the location requirements.
+    </p>
+    <figure>
+      <img src="assets/docs_image/map_perimeter_light.png" alt="Perimeter selection" width="220px">
+    </figure>
+
+
+
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const sections     = document.querySelectorAll('.doc-section');
+  const dropdownItems = document.querySelectorAll('.nav-dropdown__item');
+  const ids          = Array.from(sections).map(s => s.id);
+
+  function activate(id) {
+    const target = ids.includes(id) ? id : ids[0];
+    sections.forEach(s => s.classList.toggle('active', s.id === target));
+    dropdownItems.forEach(a => {
+      const hash = new URL(a.href, location.origin).hash.slice(1);
+      a.classList.toggle('active', hash === target);
+    });
+  }
+
+  window.addEventListener('hashchange', () => activate(location.hash.slice(1)));
+  activate(location.hash.slice(1));
+})();
+</script>
+{% endblock %}

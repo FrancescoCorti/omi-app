@@ -54,6 +54,70 @@ ALL_REGIONS    = q('SELECT DISTINCT "Reg. name" FROM omi ORDER BY "Reg. name"')[
 ALL_TYPES      = q("SELECT DISTINCT Type FROM omi ORDER BY Type")["Type"].tolist()
 ALL_CONDITIONS = q("SELECT DISTINCT Condition FROM omi ORDER BY Condition")["Condition"].tolist()
 
+# ── NTN transaction data (DuckDB, optional) ───────────────────────────────────
+NTN_URL = (
+    "https://raw.githubusercontent.com/FrancescoCorti/omi-data/main/omi_ntn_residential.parquet"
+)
+
+# size bucket key → source column. Keys are ASCII-stable (used in the API/UI);
+# the source columns carry a "²" superscript so they are matched by name here.
+_NTN_SIZE_COLS = {
+    "total":    '"Total transactions"',
+    "le50":     '"Up to 50m²"',
+    "r50_85":   '"50-85m²"',
+    "r85_115":  '"85-115m²"',
+    "r115_145": '"115-145m²"',
+    "gt145":    '"Over 145m²"',
+}
+
+_ntn_available = False
+try:
+    _ntn_resp = requests.get(NTN_URL, headers=_headers)
+    _ntn_resp.raise_for_status()
+    with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as _nf:
+        _nf.write(_ntn_resp.content)
+        _tmp_ntn = _nf.name
+    _con.execute(f"CREATE VIEW ntn AS SELECT * FROM read_parquet('{_tmp_ntn}')")
+    _ntn_available = True
+except Exception as _ntn_exc:  # non-fatal: chart still works without the overlay
+    print(f"[ntn] Transaction data unavailable: {_ntn_exc}")
+
+
+def ntn_available() -> bool:
+    return _ntn_available
+
+
+def get_ntn(reg=None, prov=None, mun=None) -> dict:
+    """Annual residential transaction counts, summed over the geographic scope.
+
+    Returns {"years": [...], "series": {size_key: [...]}, "empty": bool}.
+    NTN data is municipality-level only; region/province scopes are aggregated
+    by summing all municipalities that fall inside them.
+    """
+    if not _ntn_available:
+        return {"empty": True}
+
+    clauses, params = [], []
+    for col, val in (('"Reg. name"', reg), ('"Prov. name"', prov), ('"Mun. name"', mun)):
+        if val and val != "average":
+            clauses.append(f"{col} = ?")
+            params.append(val)
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+
+    sums = ", ".join(f"SUM({col}) AS {key}" for key, col in _NTN_SIZE_COLS.items())
+    df = _con.execute(
+        f"SELECT Year, {sums} FROM ntn {where} GROUP BY Year ORDER BY Year", params
+    ).df()
+    if df.empty:
+        return {"empty": True}
+
+    years = [str(int(y)) for y in df["Year"].tolist()]
+    series = {
+        key: [None if pd.isna(v) else int(round(float(v))) for v in df[key].tolist()]
+        for key in _NTN_SIZE_COLS
+    }
+    return {"years": years, "series": series, "empty": False}
+
 # ── Geo data (remote, cached in memory) ───────────────────────────────────────
 GEOJSON_DIR = "datasets/data_maps/geojson"
 GEO_BASE_URL = "https://raw.githubusercontent.com/FrancescoCorti/omi-geodata/main"

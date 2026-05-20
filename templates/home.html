@@ -286,7 +286,7 @@
   line-height: 1.2;
 }
 .feature-row__desc {
-  font-size: 0.92rem;
+  font-size: 1rem;
   color: var(--text-muted);
   line-height: 1.78;
   margin: 0 0 28px;
@@ -429,13 +429,13 @@
   padding: 24px 28px;
 }
 .home-about h3 {
-  font-size: 0.88rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text);
   margin: 0 0 7px;
 }
 .home-about p {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
   line-height: 1.74;
   margin: 0;
@@ -514,9 +514,11 @@
           <span class="feature-row__num">01 — Price Trend Chart</span>
           <h2 class="feature-row__title">Track prices over two decades</h2>
           <p class="feature-row__desc">
-            Visualise min, mean, and max prices per m² from 2004 to today.
-            Drill down through four geographic levels — region, province,
-            municipality, zone — and filter by property type and condition.
+            Visualise prices per m² from 2004 to today.
+            Drill down through four <b>geographic levels</b>
+             and filter by property <b>type</b> and <b>condition</b>. 
+            Integrate with transaction volumes and year-on-year percentage 
+            changes to understand market dynamics and <b>empower your data-driven decisions</b>.
           </p>
           <a href="/chart" class="feature-row__link">
             Open chart
@@ -541,9 +543,11 @@
           <span class="feature-row__num">02 — Interactive Map</span>
           <h2 class="feature-row__title">See prices across the territory</h2>
           <p class="feature-row__desc">
-            Explore the geographic distribution of real estate values across Italy for the latest available semester.
-            Switch between regions, provinces, municipalities, and OMI zones on an
-            interactive colour-coded map.
+            Explore the <b>geographic distribution</b> of real estate values across 
+            Italy for the latest available semester. Switch between regions, provinces, 
+            municipalities, and OMI zones on an <b>interactive colour-coded map</b>. 
+            Searching for specific locations? Our powerful <b>custom research tool</b> 
+            helps you find every area you need.
           </p>
           <a href="/map" class="feature-row__link">
             Open map
@@ -569,12 +573,24 @@
         <div class="stat-item__label">Years of data</div>
       </div>
       <div class="stat-item">
+        <div class="stat-item__value">18</div>
+        <div class="stat-item__label">Property types</div>
+      </div>
+      <div class="stat-item">
         <div class="stat-item__value">20</div>
-        <div class="stat-item__label">Italian regions</div>
+        <div class="stat-item__label">Regions</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-item__value">110</div>
+        <div class="stat-item__label">Provinces updated to 2025</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-item__value">7,000+</div>
+        <div class="stat-item__label">Italian municipalities</div>
       </div>
     </div>
 
-    <!-- About -->
+    <!-- About data -->
     <div class="home-about scroll-reveal sr-d3">
       <h3>About the data</h3>
       <p>
@@ -583,6 +599,17 @@
         (Agenzia delle Entrate). Data covers residential and commercial property types across
         all Italian territories, updated every semester.
         <a href="/info">Learn more →</a>
+      </p>
+    </div>
+
+    <!-- About -->
+    <div class="home-about scroll-reveal sr-d3" style="margin-top: 16px;">
+      <h3>Documentation</h3>
+      <p>
+        Need help navigating the data? Visit our documentation 
+        for a comprehensive guide on how to use our tools, interpret the data, 
+        and make the most of the available insights.
+        <a href="/docs">Learn more →</a>
       </p>
     </div>
 

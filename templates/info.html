@@ -1,10 +1,62 @@
 {% extends "base.html" %}
 
-{% block title %}Estate Insights — About{% endblock %}
+{% block title %}Estate Insights — Info{% endblock %}
 
 {% block content %}
-<div class="info-page">
-  <h2>About this app</h2>
-  <p>Content coming soon.</p>
+<div class="doc-page">
+
+  <header class="doc-page__header">
+    <p class="doc-page__eyebrow">Info</p>
+    <h1 class="doc-page__title">About Estate Insights</h1>
+    <p class="doc-page__sub">
+      Background on the project, the data sources, and the methodology behind
+      the price estimates shown across all tools.
+    </p>
+  </header>
+
+  <div class="doc-section active" id="page-1">
+    <span class="doc-section__num">01 — Page 1</span>
+    <h2>Page 1</h2>
+    <p>Content coming soon.</p>
+  </div>
+
+  <div class="doc-section" id="page-2">
+    <span class="doc-section__num">02 — Page 2</span>
+    <h2>Page 2</h2>
+    <p>Content coming soon.</p>
+  </div>
+
+  <div class="doc-section" id="page-3">
+    <span class="doc-section__num">03 — Page 3</span>
+    <h2>Page 3</h2>
+    <p>Content coming soon.</p>
+  </div>
+
+  <div class="doc-section" id="page-4">
+    <span class="doc-section__num">04 — Page 4</span>
+    <h2>Page 4</h2>
+    <p>Content coming soon.</p>
+  </div>
+
 </div>
+
+<script>
+(function () {
+  const sections      = document.querySelectorAll('.doc-section');
+  const dropdownItems = document.querySelectorAll('.nav-dropdown__item');
+  const ids           = Array.from(sections).map(s => s.id);
+
+  function activate(id) {
+    const target = ids.includes(id) ? id : ids[0];
+    sections.forEach(s => s.classList.toggle('active', s.id === target));
+    dropdownItems.forEach(a => {
+      const hash = new URL(a.href, location.origin).hash.slice(1);
+      a.classList.toggle('active', hash === target);
+    });
+  }
+
+  window.addEventListener('hashchange', () => activate(location.hash.slice(1)));
+  activate(location.hash.slice(1));
+})();
+</script>
 {% endblock %}

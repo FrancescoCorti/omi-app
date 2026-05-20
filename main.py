@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).parent
 LOGO_FILE = BASE_DIR / "assets" / "logo.svg"
 LOGO_DARK_FILE = BASE_DIR / "assets" / "logo_dark.svg"
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
@@ -70,6 +70,11 @@ def page_map(request: Request):
 @app.get("/info", response_class=HTMLResponse)
 def page_info(request: Request):
     return templates.TemplateResponse("info.html", _base_ctx(request, active="info"))
+
+
+@app.get("/docs", response_class=HTMLResponse)
+def page_docs(request: Request):
+    return templates.TemplateResponse("docs.html", _base_ctx(request, active="docs"))
 
 
 # ── Single state endpoint: returns all dropdown options + chart in one shot ──
@@ -157,6 +162,17 @@ def api_geo(level: str = "region", region: str | None = None, provinces: str | N
     except Exception as exc:
         return JSONResponse({"type": "FeatureCollection", "features": [], "error": str(exc)})
     return JSONResponse(geojson)
+
+
+@app.get("/api/ntn")
+def api_ntn(
+    region: str | None = None,
+    province: str | None = None,
+    municipality: str | None = None,
+):
+    return JSONResponse(
+        data.get_ntn(_norm(region), _norm(province), _norm(municipality))
+    )
 
 
 @app.get("/api/map/options")

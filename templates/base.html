@@ -30,7 +30,22 @@
         <a class="nav-link {% if active == 'home' %}active{% endif %}" href="/home">Home</a>
         <a class="nav-link {% if active == 'chart' %}active{% endif %}" href="/chart">Chart</a>
         <a class="nav-link {% if active == 'map' %}active{% endif %}" href="/map">Map</a>
-        <a class="nav-link {% if active == 'info' %}active{% endif %}" href="/info">Info</a>
+        <div class="nav-item">
+          <a class="nav-link {% if active == 'docs' %}active{% endif %}" href="/docs">Docs</a>
+          <div class="nav-dropdown">
+            <a class="nav-dropdown__item" href="/docs#chart-guide">Chart Guide</a>
+            <a class="nav-dropdown__item" href="/docs#map-guide">Map Guide</a>
+          </div>
+        </div>
+        <div class="nav-item">
+          <a class="nav-link {% if active == 'info' %}active{% endif %}" href="/info">Info</a>
+          <div class="nav-dropdown">
+            <a class="nav-dropdown__item" href="/info#page-1">Page 1</a>
+            <a class="nav-dropdown__item" href="/info#page-2">Page 2</a>
+            <a class="nav-dropdown__item" href="/info#page-3">Page 3</a>
+            <a class="nav-dropdown__item" href="/info#page-4">Page 4</a>
+          </div>
+        </div>
       </nav>
     </div>
     <div id="topnav-right">
